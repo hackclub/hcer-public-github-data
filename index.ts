@@ -198,7 +198,6 @@ async function getAllCommits(owner: string, repo: string, username: string) {
     const { oldest, newest } = await getCommitRange(repoFullName);
     
     if (!oldest && !newest) {
-      // No existing commits, fetch all
       console.log(`No existing commits found for ${username} in ${repoFullName}, fetching all...`);
       await getCommitsInRange(owner, repo, username);
     } else {
@@ -214,22 +213,27 @@ async function getAllCommits(owner: string, repo: string, username: string) {
         await getCommitsInRange(owner, repo, username, undefined, oldest);
       }
     }
+    console.log(`=== Finished processing ${repoFullName} ===\n`);
   } catch (error: any) {
     if (error.status === 409) {
       console.log(`Repository ${owner}/${repo} is empty or inaccessible`);
       return;
     }
+    console.error(`Error processing repository ${owner}/${repo}: ${error.message}`);
     throw error;
   }
 }
 
 // Get all repositories for a user or organization with pagination
 async function getRepos(owner: string, username: string, isOrg = false) {
+  console.log(`\nFetching repositories for ${isOrg ? 'organization' : 'user'}: ${owner}`);
   let page = 1;
   const per_page = 100;
+  let totalRepos = 0;
 
   while (true) {
     await checkRateLimit();
+    console.log(`Fetching repositories page ${page}...`);
     const { data: repos } = isOrg 
       ? await octokit.repos.listForOrg({
           org: owner,
@@ -244,19 +248,30 @@ async function getRepos(owner: string, username: string, isOrg = false) {
           type: 'owner'
         });
 
-    if (repos.length === 0) break;
+    if (repos.length === 0) {
+      console.log('No more repositories found.');
+      break;
+    }
 
+    console.log(`Found ${repos.length} repositories on page ${page}`);
     for (const repo of repos) {
       await storeRepo(repo);
       await getAllCommits(repo.owner.login, repo.name, username);
+      totalRepos++;
     }
 
-    if (repos.length < per_page) break;
+    if (repos.length < per_page) {
+      console.log('Reached last page of repositories.');
+      break;
+    }
     page++;
   }
+
+  console.log(`Total repositories processed for ${owner}: ${totalRepos}`);
 }
 
 async function main() {
+  console.log('Starting GitHub data collection...');
   const usernames = process.argv.slice(2);
   if (usernames.length === 0) {
     console.error("Please provide GitHub usernames as arguments");
@@ -270,17 +285,19 @@ async function main() {
 
   try {
     for (const username of usernames) {
-      console.log(`Processing user: ${username}`);
+      console.log(`\n=== Processing user: ${username} ===`);
       const orgs = await getUserOrgs(username);
       await getRepos(username, username, false);
       
       for (const org of orgs) {
-        console.log(`Processing org: ${org.login}`);
+        console.log(`\n=== Processing organization: ${org.login} ===`);
         await getRepos(org.login, username, true);
       }
+      console.log(`\n=== Finished processing user: ${username} ===`);
     }
+    console.log('\nData collection completed successfully!');
   } catch (error) {
-    console.error("Error:", error);
+    console.error('Fatal error:', error);
     process.exit(1);
   } finally {
     await prisma.$disconnect();
