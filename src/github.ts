@@ -42,6 +42,7 @@ export class GitHubAPI {
     // 1. Has rate limit remaining
     // 2. Rate limit reset time has passed if limit was previously exhausted
     // 3. Token is not expired
+    // 4. Token is not invalid
     return await prisma.accessToken.findFirst({
       where: {
         OR: [
@@ -49,7 +50,8 @@ export class GitHubAPI {
           { rateLimitReset: { lt: now } }
         ],
         AND: {
-          tokenExpiry: { gt: now }
+          tokenExpiry: { gt: now },
+          invalidAt: null
         }
       },
       orderBy: [
@@ -57,6 +59,32 @@ export class GitHubAPI {
         { lastUsed: 'asc' }
       ]
     });
+  }
+
+  private async markTokenAsInvalid(token: AccessToken): Promise<void> {
+    await prisma.accessToken.update({
+      where: { id: token.id },
+      data: {
+        invalidAt: new Date(),
+        rateLimitRemaining: 0
+      }
+    });
+  }
+
+  private async checkTokenValidity(token: AccessToken): Promise<boolean> {
+    try {
+      const octokit = new Octokit({ auth: token.accessToken });
+      await octokit.request('GET /user');
+      return true;
+    } catch (error: any) {
+      if (error.status === 401) {
+        console.log(`Token ${token.id} (${token.username}) has been revoked`);
+        await this.markTokenAsInvalid(token);
+        return false;
+      }
+      // For other errors (like rate limits), consider the token still valid
+      return true;
+    }
   }
 
   private async refreshToken(token: AccessToken): Promise<AccessToken> {
@@ -185,11 +213,28 @@ export class GitHubAPI {
         requestId: apiRequest.id,
       };
     } catch (error: any) {
+      // Log the failed request
+      const apiRequest = await this.logRequest(token, options, {
+        ok: false,
+        status: error.status || 500,
+        headers: new Headers(error.response?.headers || {}),
+      } as Response, error.response?.data || { error: error.message });
+
+      if (error.status === 401) {
+        // Check if token has been revoked
+        const isValid = await this.checkTokenValidity(token);
+        if (!isValid) {
+          // Try the request again with a new token
+          return this.request(options);
+        }
+      }
+
       if (error.status === 403 && error.response?.headers?.['x-ratelimit-remaining'] === '0') {
         // Update rate limits even for failed requests
         await this.updateRateLimits(token, new Headers(error.response.headers));
         throw new RateLimitError('Rate limit exceeded');
       }
+      
       throw error;
     }
   }

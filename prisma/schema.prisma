@@ -16,6 +16,7 @@ model AccessToken {
   tokenExpiry   DateTime
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+  invalidAt     DateTime?
   
   // Rate limit fields
   rateLimitRemaining Int     @default(0)
