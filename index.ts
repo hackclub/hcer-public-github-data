@@ -15,7 +15,8 @@ const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
 
 function getRedirectUri(req: Request): string {
   const host = req.headers.get('host') || 'localhost:3000';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
+  // Get protocol from X-Forwarded-Proto header or fallback to http
+  const protocol = req.headers.get('x-forwarded-proto') || 'http';
   return `${protocol}://${host}/auth/github/callback`;
 }
 
