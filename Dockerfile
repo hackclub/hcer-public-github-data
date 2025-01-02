@@ -15,14 +15,10 @@ ENV PATH=$PATH:$HOME/bun/bin
 WORKDIR /app
 
 COPY package.json .
-COPY bun.lockb .
-COPY prisma prisma
 
 RUN bun install
-# I chose to prisma generate & deploy during start phase
 
 COPY . .
-# copy anything else over that's necessary
 
 EXPOSE 3000
 
