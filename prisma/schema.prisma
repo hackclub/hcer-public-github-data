@@ -1,0 +1,42 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["views"]
+}
+
+model Organization {
+  id        Int      @id @default(autoincrement())
+  orgId     Int      @unique
+  rawData   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Repository {
+  id        Int      @id @default(autoincrement())
+  repoId    Int      @unique
+  rawData   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Commit {
+  id        Int      @id @default(autoincrement())
+  sha       String   @unique
+  rawData   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+view CommitsByUser {
+  id         Int     @unique
+  sha        String
+  authorName String
+  authorId   Int?
+  message    String
+  createdAt  DateTime
+} 

@@ -1,0 +1,17 @@
+{
+  "name": "hcer-public-github-data",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.2",
+    "@prisma/client": "^6.1.0",
+    "@types/node": "^22.10.4",
+    "prisma": "^6.1.0"
+  }
+}
