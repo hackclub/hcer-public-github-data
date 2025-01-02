@@ -12,7 +12,12 @@ const port = 3000;
 // GitHub OAuth configuration
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || '';
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
-const REDIRECT_URI = `http://localhost:${port}/auth/github/callback`;
+
+function getRedirectUri(req: Request): string {
+  const host = req.headers.get('host') || 'localhost:3000';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  return `${protocol}://${host}/auth/github/callback`;
+}
 
 interface GitHubOAuthResponse {
   access_token: string;
@@ -262,7 +267,7 @@ maxwofford
       const state = crypto.randomUUID(); // CSRF protection
       const githubAuthUrl = new URL('https://github.com/login/oauth/authorize');
       githubAuthUrl.searchParams.set('client_id', GITHUB_CLIENT_ID);
-      githubAuthUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+      githubAuthUrl.searchParams.set('redirect_uri', getRedirectUri(req));
       githubAuthUrl.searchParams.set('state', state);
 
       return new Response(null, {
@@ -307,7 +312,7 @@ maxwofford
             client_id: GITHUB_CLIENT_ID,
             client_secret: GITHUB_CLIENT_SECRET,
             code,
-            redirect_uri: REDIRECT_URI,
+            redirect_uri: getRedirectUri(req),
           }),
         });
 
