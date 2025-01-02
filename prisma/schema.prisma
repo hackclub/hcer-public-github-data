@@ -7,7 +7,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model User {
+model AccessToken {
   id            String       @id @default(uuid())
   githubId      Int         @unique
   username      String
@@ -28,8 +28,8 @@ model User {
 
 model APIRequest {
   id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  accessTokenId String
+  accessToken AccessToken @relation(fields: [accessTokenId], references: [id])
   requestUrl  String
   requestParams Json
   responseHeaders Json
@@ -40,6 +40,6 @@ model APIRequest {
   rateLimitRemaining Int?
   rateLimitReset DateTime?
 
-  @@index([userId])
+  @@index([accessTokenId])
   @@index([createdAt])
 } 

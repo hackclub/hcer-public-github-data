@@ -1,4 +1,4 @@
-import { PrismaClient, User, APIRequest } from '@prisma/client';
+import { PrismaClient, AccessToken, APIRequest } from '@prisma/client';
 import { Octokit } from 'octokit';
 
 const prisma = new PrismaClient();
@@ -35,14 +35,14 @@ export class GitHubAPI {
     this.prisma = new PrismaClient();
   }
 
-  private async findAvailableToken(): Promise<User | null> {
+  private async findAvailableToken(): Promise<AccessToken | null> {
     const now = new Date();
 
-    // Find a user token that:
+    // Find a token that:
     // 1. Has rate limit remaining
     // 2. Rate limit reset time has passed if limit was previously exhausted
     // 3. Token is not expired
-    return await prisma.user.findFirst({
+    return await prisma.accessToken.findFirst({
       where: {
         OR: [
           { rateLimitRemaining: { gt: 0 } },
@@ -59,8 +59,8 @@ export class GitHubAPI {
     });
   }
 
-  private async refreshToken(user: User): Promise<User> {
-    if (!user.refreshToken) {
+  private async refreshToken(token: AccessToken): Promise<AccessToken> {
+    if (!token.refreshToken) {
       throw new GitHubAPIError('No refresh token available', 'NO_REFRESH_TOKEN');
     }
 
@@ -73,7 +73,7 @@ export class GitHubAPI {
       body: JSON.stringify({
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
-        refresh_token: user.refreshToken,
+        refresh_token: token.refreshToken,
         grant_type: 'refresh_token',
       }),
     });
@@ -84,8 +84,8 @@ export class GitHubAPI {
 
     const data = await response.json();
     
-    return await prisma.user.update({
-      where: { id: user.id },
+    return await prisma.accessToken.update({
+      where: { id: token.id },
       data: {
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
@@ -94,13 +94,13 @@ export class GitHubAPI {
     });
   }
 
-  private async updateRateLimits(user: User, headers: Headers): Promise<User> {
+  private async updateRateLimits(token: AccessToken, headers: Headers): Promise<AccessToken> {
     const remaining = parseInt(headers.get('x-ratelimit-remaining') || '0');
     const reset = new Date(parseInt(headers.get('x-ratelimit-reset') || '0') * 1000);
     const limit = parseInt(headers.get('x-ratelimit-limit') || '0');
 
-    return await prisma.user.update({
-      where: { id: user.id },
+    return await prisma.accessToken.update({
+      where: { id: token.id },
       data: {
         rateLimitRemaining: remaining,
         rateLimitReset: reset,
@@ -110,7 +110,7 @@ export class GitHubAPI {
   }
 
   private async logRequest(
-    user: User,
+    token: AccessToken,
     request: RequestOptions,
     response: Response,
     responseBody: any
@@ -122,7 +122,7 @@ export class GitHubAPI {
 
     return await prisma.aPIRequest.create({
       data: {
-        userId: user.id,
+        accessTokenId: token.id,
         requestUrl: request.url,
         requestParams: request.params || {},
         responseHeaders: headers,
@@ -136,25 +136,25 @@ export class GitHubAPI {
   }
 
   async request<T = any>(options: RequestOptions): Promise<{ data: T; requestId: string }> {
-    let user = await this.findAvailableToken();
-    if (!user) {
+    let token = await this.findAvailableToken();
+    if (!token) {
       throw new NoAvailableTokenError();
     }
 
     // If token is expired, try to refresh it
-    if (user.tokenExpiry <= new Date()) {
+    if (token.tokenExpiry <= new Date()) {
       try {
-        user = await this.refreshToken(user);
+        token = await this.refreshToken(token);
       } catch (error) {
         // If refresh fails, try to find another token
-        user = await this.findAvailableToken();
-        if (!user) {
+        token = await this.findAvailableToken();
+        if (!token) {
           throw new NoAvailableTokenError();
         }
       }
     }
 
-    const octokit = new Octokit({ auth: user.accessToken });
+    const octokit = new Octokit({ auth: token.accessToken });
     
     try {
       const response = await octokit.request({
@@ -164,10 +164,10 @@ export class GitHubAPI {
       });
 
       // Update rate limits
-      await this.updateRateLimits(user, new Headers(response.headers as any));
+      await this.updateRateLimits(token, new Headers(response.headers as any));
 
       // Log the request
-      const apiRequest = await this.logRequest(user, options, {
+      const apiRequest = await this.logRequest(token, options, {
         ok: true,
         status: response.status,
         headers: new Headers(response.headers as any),
@@ -180,7 +180,7 @@ export class GitHubAPI {
     } catch (error: any) {
       if (error.status === 403 && error.response?.headers?.['x-ratelimit-remaining'] === '0') {
         // Update rate limits even for failed requests
-        await this.updateRateLimits(user, new Headers(error.response.headers));
+        await this.updateRateLimits(token, new Headers(error.response.headers));
         throw new RateLimitError('Rate limit exceeded');
       }
       throw error;

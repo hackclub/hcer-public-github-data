@@ -96,8 +96,8 @@ const server = Bun.serve({
         const tokenExpiry = new Date();
         tokenExpiry.setSeconds(tokenExpiry.getSeconds() + (tokenData.expires_in || 28800)); // Default to 8 hours if not provided
 
-        // Store user and tokens in database
-        const user = await prisma.user.upsert({
+        // Store access token in database
+        const token = await prisma.accessToken.upsert({
           where: { githubId: userData.id },
           update: {
             username: userData.login,
