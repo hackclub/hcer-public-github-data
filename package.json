@@ -1,0 +1,19 @@
+{
+  "name": "hcer-public-github-data",
+  "version": "1.0.0",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch index.ts",
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "octokit": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "bun-types": "latest",
+    "prisma": "^6.1.0"
+  }
+}
