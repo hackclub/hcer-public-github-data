@@ -40,6 +40,114 @@ model APIRequest {
   rateLimitRemaining Int?
   rateLimitReset DateTime?
 
+  // Relations
+  fetchedUsers GitHubUser[]
+  fetchedRepos Repository[]
+  fetchedOrgs  Organization[]
+  fetchedCommits Commit[]
+
   @@index([accessTokenId])
   @@index([createdAt])
+}
+
+model GitHubUser {
+  id            Int      @id
+  login         String   @unique
+  name          String?
+  email         String?
+  bio           String?
+  location      String?
+  websiteUrl    String?
+  avatarUrl     String?
+  followers     Int      @default(0)
+  following     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastFetched   DateTime @default(now())
+
+  // Reference to the API request that fetched this user's data
+  fetchedFromRequestId String
+  fetchedFromRequest   APIRequest @relation(fields: [fetchedFromRequestId], references: [id])
+
+  // Relations
+  repositories Repository[] @relation("UserRepositories")
+  organizations Organization[] @relation("UserOrganizations")
+  authoredCommits Commit[] @relation("CommitAuthor")
+  committedCommits Commit[] @relation("CommitCommitter")
+
+  @@index([fetchedFromRequestId])
+}
+
+model Organization {
+  id            Int      @id
+  login         String   @unique
+  name          String?
+  description   String?
+  avatarUrl     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastFetched   DateTime @default(now())
+
+  // Reference to the API request that fetched this org's data
+  fetchedFromRequestId String
+  fetchedFromRequest   APIRequest @relation(fields: [fetchedFromRequestId], references: [id])
+
+  // Relations
+  members      GitHubUser[] @relation("UserOrganizations")
+  repositories Repository[] @relation("OrgRepositories")
+
+  @@index([fetchedFromRequestId])
+}
+
+model Repository {
+  id            Int      @id
+  name          String
+  fullName      String   @unique // owner/name
+  description   String?
+  isPrivate     Boolean
+  isFork        Boolean
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastFetched   DateTime @default(now())
+
+  // Reference to the API request that fetched this repo's data
+  fetchedFromRequestId String
+  fetchedFromRequest   APIRequest @relation(fields: [fetchedFromRequestId], references: [id])
+
+  // Relations
+  owner        GitHubUser? @relation("UserRepositories", fields: [ownerId], references: [id])
+  ownerId      Int?
+  organization Organization? @relation("OrgRepositories", fields: [orgId], references: [id])
+  orgId        Int?
+  commits      Commit[]
+
+  @@index([fetchedFromRequestId])
+  @@index([ownerId])
+  @@index([orgId])
+}
+
+model Commit {
+  id            String   @id // SHA
+  message       String
+  authoredDate  DateTime
+  committedDate DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Reference to the API request that fetched this commit's data
+  fetchedFromRequestId String
+  fetchedFromRequest   APIRequest @relation(fields: [fetchedFromRequestId], references: [id])
+
+  // Relations
+  repository   Repository @relation(fields: [repoId], references: [id])
+  repoId       Int
+  author       GitHubUser? @relation("CommitAuthor", fields: [authorId], references: [id])
+  authorId     Int?
+  committer    GitHubUser? @relation("CommitCommitter", fields: [committerId], references: [id])
+  committerId  Int?
+
+  @@index([fetchedFromRequestId])
+  @@index([repoId])
+  @@index([authorId])
+  @@index([committerId])
 } 
