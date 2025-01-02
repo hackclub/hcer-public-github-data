@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { Octokit } from 'octokit';
 import { GitHubAPI } from './src/github';
 import { GitHubScraper } from './src/scraper';
+import { requireAuth } from './src/auth';
 
 const prisma = new PrismaClient();
 const github = new GitHubAPI();
@@ -70,6 +71,190 @@ const server = Bun.serve({
     // Health check
     if (url.pathname === '/health') {
       return new Response('OK');
+    }
+
+    // Admin section
+    if (url.pathname === '/admin') {
+      const authResponse = requireAuth(req);
+      if (authResponse) return authResponse;
+
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Admin - GitHub Data Collection</title>
+            <style>
+              body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+              .nav { margin: 2rem 0; }
+              .button {
+                display: inline-block;
+                padding: 0.5rem 1rem;
+                background: #2ea44f;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+                margin-right: 1rem;
+              }
+              .button:hover { background: #2c974b; }
+              .button.secondary {
+                background: #6e7781;
+              }
+              .button.secondary:hover {
+                background: #5e666e;
+              }
+            </style>
+          </head>
+          <body>
+            <h1>Admin Dashboard</h1>
+            <div class="nav">
+              <a href="/admin/add-users" class="button">Add Users to Track</a>
+              <a href="/admin/start-scrape" class="button secondary">Start Scraping All Users</a>
+            </div>
+            <p><a href="/">← Back to home</a></p>
+          </body>
+        </html>
+      `, {
+        headers: { 'Content-Type': 'text/html' }
+      });
+    }
+
+    // Add GitHub users form (protected)
+    if (url.pathname === '/admin/add-users') {
+      const authResponse = requireAuth(req);
+      if (authResponse) return authResponse;
+
+      if (req.method === 'POST') {
+        const formData = await req.formData();
+        const usernames = formData.get('usernames')?.toString() || '';
+        
+        // Process each username
+        const results = [];
+        for (const username of usernames.split('\n').map(u => u.trim()).filter(Boolean)) {
+          const result = await addGitHubUser(username);
+          results.push(`${username}: ${result.message}`);
+        }
+
+        // Return results page
+        return new Response(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Add Users Results</title>
+              <style>
+                body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+                pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; }
+              </style>
+            </head>
+            <body>
+              <h1>Results</h1>
+              <pre>${results.join('\n')}</pre>
+              <p><a href="/admin/add-users">← Back to form</a></p>
+              <p><a href="/admin">← Back to admin</a></p>
+            </body>
+          </html>
+        `, {
+          headers: { 'Content-Type': 'text/html' }
+        });
+      }
+
+      // Show form
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Add GitHub Users</title>
+            <style>
+              body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+              textarea { width: 100%; height: 200px; margin: 1rem 0; }
+              button { background: #2ea44f; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+              button:hover { background: #2c974b; }
+            </style>
+          </head>
+          <body>
+            <h1>Add GitHub Users to Track</h1>
+            <p>Enter one GitHub username per line:</p>
+            <form method="POST">
+              <textarea name="usernames" placeholder="zachlatta
+maxwofford
+..."></textarea>
+              <br>
+              <button type="submit">Add Users</button>
+            </form>
+            <p><a href="/admin">← Back to admin</a></p>
+          </body>
+        </html>
+      `, {
+        headers: { 'Content-Type': 'text/html' }
+      });
+    }
+
+    // Start scraping (protected)
+    if (url.pathname === '/admin/start-scrape') {
+      const authResponse = requireAuth(req);
+      if (authResponse) return authResponse;
+
+      // Start scraping in the background
+      scraper.scrapeAllUsers().catch(error => {
+        console.error('Scraping error:', error);
+      });
+
+      // Return immediate response
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Scraping Started</title>
+            <style>
+              body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+            </style>
+          </head>
+          <body>
+            <h1>Scraping Started</h1>
+            <p>The scraping process has been started in the background. Check the server logs for progress.</p>
+            <p><a href="/admin">← Back to admin</a></p>
+          </body>
+        </html>
+      `, {
+        headers: { 'Content-Type': 'text/html' }
+      });
+    }
+
+    // Home page
+    if (url.pathname === '/') {
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Donate your GitHub token</title>
+            <style>
+              body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+              .nav { margin: 2rem 0; }
+              .button {
+                display: inline-block;
+                padding: 0.5rem 1rem;
+                background: #2ea44f;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+              }
+              .button:hover { background: #2c974b; }
+            </style>
+          </head>
+          <body>
+            <h1>Donate your GitHub token</h1>
+            <p>I'm working on a project to see if people coded more on average during High Seas / Arcade than before.</p>
+            <p>By clicking "Donate Token", you will be prompted to log in with GitHub. It'll only ask for public permissions and won't give any private access to your account or give edit access to anything (it's read-only).</p>
+            <p>It'll just help the project make more API requests to GitHub faster (because my personal access token is getting rate limited).</p>
+            <p>Thank you!</p>
+            <p>- Zach</p>
+            <div class="nav">
+              <a href="/auth/github" class="button">Donate Token</a>
+            </div>
+          </body>
+        </html>
+      `, {
+        headers: { 'Content-Type': 'text/html' },
+      });
     }
 
     // GitHub OAuth initialization
@@ -183,141 +368,6 @@ const server = Bun.serve({
         console.error('OAuth error:', error);
         return new Response('Authentication failed', { status: 500 });
       }
-    }
-
-    // Add GitHub users form
-    if (url.pathname === '/add-users') {
-      if (req.method === 'POST') {
-        const formData = await req.formData();
-        const usernames = formData.get('usernames')?.toString() || '';
-        
-        // Process each username
-        const results = [];
-        for (const username of usernames.split('\n').map(u => u.trim()).filter(Boolean)) {
-          const result = await addGitHubUser(username);
-          results.push(`${username}: ${result.message}`);
-        }
-
-        // Return results page
-        return new Response(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Add Users Results</title>
-              <style>
-                body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-                pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; }
-              </style>
-            </head>
-            <body>
-              <h1>Results</h1>
-              <pre>${results.join('\n')}</pre>
-              <p><a href="/add-users">← Back to form</a></p>
-            </body>
-          </html>
-        `, {
-          headers: { 'Content-Type': 'text/html' }
-        });
-      }
-
-      // Show form
-      return new Response(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Add GitHub Users</title>
-            <style>
-              body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-              textarea { width: 100%; height: 200px; margin: 1rem 0; }
-              button { background: #2ea44f; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-              button:hover { background: #2c974b; }
-            </style>
-          </head>
-          <body>
-            <h1>Add GitHub Users to Track</h1>
-            <p>Enter one GitHub username per line:</p>
-            <form method="POST">
-              <textarea name="usernames" placeholder="zachlatta
-maxwofford
-..."></textarea>
-              <br>
-              <button type="submit">Add Users</button>
-            </form>
-          </body>
-        </html>
-      `, {
-        headers: { 'Content-Type': 'text/html' }
-      });
-    }
-
-    // Start scraping
-    if (url.pathname === '/start-scrape') {
-      // Start scraping in the background
-      scraper.scrapeAllUsers().catch(error => {
-        console.error('Scraping error:', error);
-      });
-
-      // Return immediate response
-      return new Response(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Scraping Started</title>
-            <style>
-              body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-            </style>
-          </head>
-          <body>
-            <h1>Scraping Started</h1>
-            <p>The scraping process has been started in the background. Check the server logs for progress.</p>
-            <p><a href="/">← Back to home</a></p>
-          </body>
-        </html>
-      `, {
-        headers: { 'Content-Type': 'text/html' }
-      });
-    }
-
-    // Home page
-    if (url.pathname === '/') {
-      return new Response(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>GitHub Data Collection</title>
-            <style>
-              body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-              .nav { margin: 2rem 0; }
-              .nav a { margin-right: 1rem; }
-              .button {
-                display: inline-block;
-                padding: 0.5rem 1rem;
-                background: #2ea44f;
-                color: white;
-                text-decoration: none;
-                border-radius: 4px;
-              }
-              .button:hover { background: #2c974b; }
-              .button.secondary {
-                background: #6e7781;
-              }
-              .button.secondary:hover {
-                background: #5e666e;
-              }
-            </style>
-          </head>
-          <body>
-            <h1>GitHub Data Collection</h1>
-            <div class="nav">
-              <a href="/auth/github" class="button">Donate Token</a>
-              <a href="/add-users" class="button">Add Users to Track</a>
-              <a href="/start-scrape" class="button secondary">Start Scraping All Users</a>
-            </div>
-          </body>
-        </html>
-      `, {
-        headers: { 'Content-Type': 'text/html' },
-      });
     }
 
     return new Response('Not Found', { status: 404 });
