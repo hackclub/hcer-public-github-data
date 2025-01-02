@@ -95,9 +95,16 @@ export class GitHubAPI {
   }
 
   private async updateRateLimits(token: AccessToken, headers: Headers): Promise<AccessToken> {
-    const remaining = parseInt(headers.get('x-ratelimit-remaining') || '0');
-    const reset = new Date(parseInt(headers.get('x-ratelimit-reset') || '0') * 1000);
-    const limit = parseInt(headers.get('x-ratelimit-limit') || '0');
+    // Parse rate limit headers from Octokit response
+    const remaining = parseInt(headers.get('x-ratelimit-remaining') || '0', 10);
+    const reset = new Date(parseInt(headers.get('x-ratelimit-reset') || '0', 10) * 1000);
+
+    // Debug log to verify values
+    console.log('Rate limit headers:', {
+      remaining,
+      reset: reset.toISOString(),
+      headers: Object.fromEntries([...headers.entries()])
+    });
 
     return await prisma.accessToken.update({
       where: { id: token.id },
