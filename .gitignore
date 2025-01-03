@@ -178,7 +178,6 @@ dist
 bun.lockb
 
 # Prisma
-prisma/migrations/
 *.db
 *.db-journal
 
