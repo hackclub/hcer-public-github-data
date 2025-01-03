@@ -88,6 +88,7 @@ const server = Bun.serve({
         <!DOCTYPE html>
         <html>
           <head>
+            <meta charset="utf-8">
             <title>Admin - GitHub Data Collection</title>
             <style>
               body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
@@ -145,6 +146,7 @@ const server = Bun.serve({
           <!DOCTYPE html>
           <html>
             <head>
+              <meta charset="utf-8">
               <title>Add Users Results</title>
               <style>
                 body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
@@ -168,6 +170,7 @@ const server = Bun.serve({
         <!DOCTYPE html>
         <html>
           <head>
+            <meta charset="utf-8">
             <title>Add GitHub Users</title>
             <style>
               body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
@@ -209,6 +212,7 @@ maxwofford
         <!DOCTYPE html>
         <html>
           <head>
+            <meta charset="utf-8">
             <title>Scraping Started</title>
             <style>
               body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
@@ -231,6 +235,7 @@ maxwofford
         <!DOCTYPE html>
         <html>
           <head>
+            <meta charset="utf-8">
             <title>Donate your GitHub token</title>
             <style>
               body { font-family: system-ui; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
@@ -354,6 +359,7 @@ maxwofford
           <!DOCTYPE html>
           <html>
             <head>
+              <meta charset="utf-8">
               <title>Success!</title>
             </head>
             <body>
