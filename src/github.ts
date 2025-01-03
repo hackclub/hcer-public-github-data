@@ -1,6 +1,7 @@
 import { PrismaClient, AccessToken, APIRequest } from '@prisma/client';
 import { Octokit } from 'octokit';
 
+// Use a single Prisma client instance
 const prisma = new PrismaClient();
 
 export class GitHubAPIError extends Error {
@@ -29,35 +30,56 @@ interface RequestOptions {
 }
 
 export class GitHubAPI {
-  private prisma: PrismaClient;
-
-  constructor() {
-    this.prisma = new PrismaClient();
+  private async getRateLimitScope(url: string): Promise<'core' | 'search' | 'graphql'> {
+    if (url.startsWith('/search')) return 'search';
+    if (url.startsWith('/graphql')) return 'graphql';
+    return 'core';
   }
 
   private async findAvailableToken(): Promise<AccessToken | null> {
     const now = new Date();
 
-    // Find a token that:
-    // 1. Has rate limit remaining
-    // 2. Rate limit reset time has passed if limit was previously exhausted
-    // 3. Token is not expired
-    // 4. Token is not invalid
-    return await prisma.accessToken.findFirst({
-      where: {
-        OR: [
-          { rateLimitRemaining: { gt: 0 } },
-          { rateLimitReset: { lt: now } }
-        ],
-        AND: {
-          tokenExpiry: { gt: now },
-          invalidAt: null
-        }
-      },
-      orderBy: [
-        { rateLimitRemaining: 'desc' },
-        { lastUsed: 'asc' }
-      ]
+    // Use a transaction to ensure we get a token and lock it atomically
+    return await prisma.$transaction(async (tx) => {
+      const token = await tx.accessToken.findFirst({
+        where: {
+          OR: [
+            {
+              OR: [
+                { coreRateLimitRemaining: { gt: 0 } },
+                { coreRateLimitReset: { lt: now } }
+              ]
+            },
+            {
+              OR: [
+                { searchRateLimitRemaining: { gt: 0 } },
+                { searchRateLimitReset: { lt: now } }
+              ]
+            },
+            {
+              OR: [
+                { graphqlRateLimitRemaining: { gt: 0 } },
+                { graphqlRateLimitReset: { lt: now } }
+              ]
+            }
+          ],
+          AND: {
+            tokenExpiry: { gt: now },
+            invalidAt: null
+          }
+        },
+        orderBy: [
+          { lastUsed: 'asc' }
+        ]
+      });
+
+      if (!token) return null;
+
+      // Lock the token by updating lastUsed
+      return await tx.accessToken.update({
+        where: { id: token.id },
+        data: { lastUsed: now }
+      });
     });
   }
 
@@ -66,7 +88,9 @@ export class GitHubAPI {
       where: { id: token.id },
       data: {
         invalidAt: new Date(),
-        rateLimitRemaining: 0
+        coreRateLimitRemaining: 0,
+        searchRateLimitRemaining: 0,
+        graphqlRateLimitRemaining: 0
       }
     });
   }
@@ -122,51 +146,51 @@ export class GitHubAPI {
     });
   }
 
-  private async updateRateLimits(token: AccessToken, headers: Headers): Promise<AccessToken> {
-    // Parse rate limit headers from Octokit response
-    const remaining = parseInt(headers.get('x-ratelimit-remaining') || '0', 10);
-    const reset = new Date(parseInt(headers.get('x-ratelimit-reset') || '0', 10) * 1000);
-
-    // Debug log to verify values
-    console.log('Rate limit headers:', {
-      remaining,
-      reset: reset.toISOString(),
-      headers: Object.fromEntries([...headers.entries()])
+  private async updateRateLimits(token: AccessToken, headers: Headers, url: string): Promise<AccessToken> {
+    const scope = await this.getRateLimitScope(url);
+    
+    // Get all rate limit info to ensure we have the correct scope
+    const octokit = new Octokit({ auth: token.accessToken });
+    const { data: rateLimits } = await octokit.request('GET /rate_limit');
+    
+    // Use the appropriate scope's rate limits
+    const limits = rateLimits.resources[scope];
+    
+    if (!limits) {
+      console.warn(`No rate limits found for scope ${scope}`);
+      return token;
+    }
+    
+    console.log(`Rate limits for token ${token.id} (${token.username}) [${scope}]:`, {
+      remaining: limits.remaining,
+      limit: limits.limit,
+      reset: new Date(limits.reset * 1000).toISOString(),
+      scope
     });
+
+    // Update the appropriate rate limit fields based on scope
+    const updateData: any = {
+      lastUsed: new Date()
+    };
+
+    switch (scope) {
+      case 'core':
+        updateData.coreRateLimitRemaining = limits.remaining;
+        updateData.coreRateLimitReset = new Date(limits.reset * 1000);
+        break;
+      case 'search':
+        updateData.searchRateLimitRemaining = limits.remaining;
+        updateData.searchRateLimitReset = new Date(limits.reset * 1000);
+        break;
+      case 'graphql':
+        updateData.graphqlRateLimitRemaining = limits.remaining;
+        updateData.graphqlRateLimitReset = new Date(limits.reset * 1000);
+        break;
+    }
 
     return await prisma.accessToken.update({
       where: { id: token.id },
-      data: {
-        rateLimitRemaining: remaining,
-        rateLimitReset: reset,
-        lastUsed: new Date(),
-      },
-    });
-  }
-
-  private async logRequest(
-    token: AccessToken,
-    request: RequestOptions,
-    response: Response,
-    responseBody: any
-  ): Promise<APIRequest> {
-    const headers: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      headers[key] = value;
-    });
-
-    return await prisma.aPIRequest.create({
-      data: {
-        accessTokenId: token.id,
-        requestUrl: request.url,
-        requestParams: request.params || {},
-        responseHeaders: headers,
-        responseBody,
-        statusCode: response.status,
-        rateLimit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),
-        rateLimitRemaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
-        rateLimitReset: new Date(parseInt(response.headers.get('x-ratelimit-reset') || '0') * 1000),
-      },
+      data: updateData
     });
   }
 
@@ -198,15 +222,23 @@ export class GitHubAPI {
         ...options.params,
       });
 
-      // Update rate limits
-      await this.updateRateLimits(token, new Headers(response.headers as any));
+      // Update rate limits with the correct scope
+      await this.updateRateLimits(token, new Headers(response.headers as any), options.url);
 
       // Log the request
-      const apiRequest = await this.logRequest(token, options, {
-        ok: true,
-        status: response.status,
-        headers: new Headers(response.headers as any),
-      } as Response, response.data);
+      const apiRequest = await prisma.aPIRequest.create({
+        data: {
+          accessTokenId: token.id,
+          requestUrl: options.url,
+          requestParams: options.params || {},
+          responseHeaders: Object.fromEntries(Object.entries(response.headers || {})),
+          responseBody: response.data,
+          statusCode: response.status,
+          rateLimit: parseInt(response.headers['x-ratelimit-limit'] || '0'),
+          rateLimitRemaining: parseInt(response.headers['x-ratelimit-remaining'] || '0'),
+          rateLimitReset: new Date(parseInt(response.headers['x-ratelimit-reset'] || '0') * 1000),
+        },
+      });
 
       return {
         data: response.data,
@@ -214,11 +246,25 @@ export class GitHubAPI {
       };
     } catch (error: any) {
       // Log the failed request
-      const apiRequest = await this.logRequest(token, options, {
-        ok: false,
-        status: error.status || 500,
-        headers: new Headers(error.response?.headers || {}),
-      } as Response, error.response?.data || { error: error.message });
+      const apiRequest = await prisma.aPIRequest.create({
+        data: {
+          accessTokenId: token.id,
+          requestUrl: options.url,
+          requestParams: options.params || {},
+          responseHeaders: Object.fromEntries(Object.entries(error.response?.headers || {})),
+          responseBody: error.response?.data || { error: error.message },
+          statusCode: error.status || 500,
+          rateLimit: error.response?.headers?.['x-ratelimit-limit'] 
+            ? parseInt(error.response.headers['x-ratelimit-limit'])
+            : null,
+          rateLimitRemaining: error.response?.headers?.['x-ratelimit-remaining']
+            ? parseInt(error.response.headers['x-ratelimit-remaining'])
+            : null,
+          rateLimitReset: error.response?.headers?.['x-ratelimit-reset']
+            ? new Date(parseInt(error.response.headers['x-ratelimit-reset']) * 1000)
+            : null,
+        },
+      });
 
       if (error.status === 401) {
         // Check if token has been revoked
@@ -231,7 +277,7 @@ export class GitHubAPI {
 
       if (error.status === 403 && error.response?.headers?.['x-ratelimit-remaining'] === '0') {
         // Update rate limits even for failed requests
-        await this.updateRateLimits(token, new Headers(error.response.headers));
+        await this.updateRateLimits(token, new Headers(error.response.headers), options.url);
         throw new RateLimitError('Rate limit exceeded');
       }
       

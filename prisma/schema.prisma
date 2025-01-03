@@ -18,9 +18,18 @@ model AccessToken {
   updatedAt     DateTime    @updatedAt
   invalidAt     DateTime?
   
-  // Rate limit fields
-  rateLimitRemaining Int     @default(0)
-  rateLimitReset    DateTime @default(now())
+  // Rate limit fields - Core API
+  coreRateLimitRemaining Int     @default(0)
+  coreRateLimitReset    DateTime @default(now())
+  
+  // Rate limit fields - Search API
+  searchRateLimitRemaining Int     @default(0)
+  searchRateLimitReset    DateTime @default(now())
+  
+  // Rate limit fields - GraphQL API
+  graphqlRateLimitRemaining Int     @default(0)
+  graphqlRateLimitReset    DateTime @default(now())
+  
   lastUsed          DateTime @default(now())
   
   // Relations
