@@ -3,6 +3,7 @@ import { Octokit } from 'octokit';
 import { GitHubAPI } from './src/github';
 import { GitHubScraper } from './src/scraper';
 import { requireAuth } from './src/auth';
+import { formatDistanceToNow } from 'date-fns';
 
 const prisma = new PrismaClient();
 const github = new GitHubAPI();
@@ -67,6 +68,27 @@ async function addGitHubUser(username: string): Promise<{ success: boolean; mess
     console.error('Error adding user:', username, error);
     return { success: false, message: `Failed to add user ${username}: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
+}
+
+async function getDonationStats() {
+  const totalDonors = await prisma.accessToken.count();
+  const mostRecent = await prisma.accessToken.findFirst({
+    orderBy: { createdAt: 'desc' },
+    select: { 
+      createdAt: true,
+      username: true 
+    }
+  });
+
+  const timeAgo = mostRecent 
+    ? formatDistanceToNow(mostRecent.createdAt, { addSuffix: true })
+    : 'never';
+
+  return { 
+    totalDonors, 
+    timeAgo,
+    lastDonorUsername: mostRecent?.username 
+  };
 }
 
 const server = Bun.serve({
@@ -231,6 +253,12 @@ maxwofford
 
     // Home page
     if (url.pathname === '/') {
+      const { totalDonors, timeAgo, lastDonorUsername } = await getDonationStats();
+      
+      const lastDonorHtml = lastDonorUsername 
+        ? `<a href="https://github.com/${lastDonorUsername}" target="_blank" style="color: #0969da; text-decoration: none;">@${lastDonorUsername}</a>`
+        : 'nobody';
+
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -249,10 +277,23 @@ maxwofford
                 border-radius: 4px;
               }
               .button:hover { background: #2c974b; }
+              .stats {
+                background: #f6f8fa;
+                padding: 1rem;
+                border-radius: 6px;
+                margin: 1rem 0;
+              }
+              .stats a:hover {
+                text-decoration: underline;
+              }
             </style>
           </head>
           <body>
             <h1>Donate your GitHub token</h1>
+            <div class="stats">
+              <p><strong>${totalDonors} Hack Clubbers</strong> have donated GitHub tokens so far.</p>
+              <p>The most recent person to donate was <strong>${lastDonorHtml}</strong> (${timeAgo}).</p>
+            </div>
             <p>I'm working on a project to see if people coded more on average during High Seas / Arcade than before.</p>
             <p>By clicking "Donate Token", you will be prompted to log in with GitHub. It'll only ask for public permissions and won't give any private access to your account or give edit access to anything (it's read-only).</p>
             <p>It'll just help the project make more API requests to GitHub faster (because my personal access token is getting rate limited).</p>

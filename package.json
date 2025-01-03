@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
+    "date-fns": "^4.1.0",
     "octokit": "latest"
   },
   "devDependencies": {
