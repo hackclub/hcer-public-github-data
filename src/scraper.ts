@@ -600,14 +600,16 @@ export class GitHubScraper {
     this.log(`Completed batch processing of ${users.length} users`);
   }
 
-  async scrapeAllUsers(numWorkers: number = 10) {
+  async scrapeAllUsers(options?: { metadata?: ScrapeMetadata }) {
     try {
-      const scrapeJob = await this.startScrapeJob('FULL_SYNC');
-      if (numWorkers < 1) {
-        throw new Error('Number of workers must be at least 1');
-      }
+      const scrapeJob = await this.startScrapeJob('FULL_SYNC', options?.metadata);
 
-      this.log('Starting full data collection');
+      // Get number of access tokens and set workers to 1/3 of that (minimum 1)
+      const numAccessTokens = await prisma.accessToken.count();
+      const numWorkers = Math.max(1, Math.floor(numAccessTokens / 3));
+      
+      this.log(`Using ${numWorkers} workers based on ${numAccessTokens} access tokens`);
+
       const users = await prisma.gitHubUser.findMany({
         orderBy: {
           lastFetched: 'asc'
