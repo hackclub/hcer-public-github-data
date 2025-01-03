@@ -1,18 +1,22 @@
 import { PrismaClient, GitHubUser, Organization, Repository } from '@prisma/client';
 import { GitHubAPI } from './github';
 
-export class GitHubScraper {
-  private prisma: PrismaClient;
-  private github: GitHubAPI;
+// Share a single PrismaClient instance across all scrapers
+const prisma = new PrismaClient();
 
-  constructor() {
-    this.prisma = new PrismaClient();
+export class GitHubScraper {
+  private github: GitHubAPI;
+  private workerId?: number;
+
+  constructor(workerId?: number) {
     this.github = new GitHubAPI();
+    this.workerId = workerId;
   }
 
   private log(message: string, data?: any) {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${message}`);
+    const workerPrefix = this.workerId !== undefined ? `[Worker ${this.workerId}] ` : '';
+    console.log(`[${timestamp}] ${workerPrefix}${message}`);
     if (data) {
       console.log(JSON.stringify(data, null, 2));
     }
@@ -22,7 +26,7 @@ export class GitHubScraper {
     this.log(`Checking if organization ${orgLogin} exists`);
     
     // Check if org exists
-    const existingOrg = await this.prisma.organization.findUnique({
+    const existingOrg = await prisma.organization.findUnique({
       where: { login: orgLogin }
     });
 
@@ -39,7 +43,7 @@ export class GitHubScraper {
 
     this.log(`Creating organization ${orgLogin}`, { id: orgData.id });
     // Store org
-    return await this.prisma.organization.create({
+    return await prisma.organization.create({
       data: {
         id: orgData.id,
         login: orgData.login,
@@ -58,7 +62,7 @@ export class GitHubScraper {
     this.log(`Checking if repository ${fullName} exists`);
 
     // Check if repo exists
-    const existingRepo = await this.prisma.repository.findUnique({
+    const existingRepo = await prisma.repository.findUnique({
       where: { fullName }
     });
 
@@ -79,14 +83,14 @@ export class GitHubScraper {
 
     if (ownerType === 'user') {
       this.log(`Looking up user owner ${owner}`);
-      const ownerUser = await this.prisma.gitHubUser.findUnique({
+      const ownerUser = await prisma.gitHubUser.findUnique({
         where: { login: owner }
       });
       ownerId = ownerUser?.id || null;
       this.log(`Found user owner`, { userId: ownerId });
     } else {
       this.log(`Looking up organization owner ${owner}`);
-      const ownerOrg = await this.prisma.organization.findUnique({
+      const ownerOrg = await prisma.organization.findUnique({
         where: { login: owner }
       });
       orgId = ownerOrg?.id || null;
@@ -100,7 +104,7 @@ export class GitHubScraper {
     });
 
     // Store repo
-    return await this.prisma.repository.create({
+    return await prisma.repository.create({
       data: {
         id: repoData.id,
         name: repoData.name,
@@ -127,7 +131,7 @@ export class GitHubScraper {
 
   private async fetchAndStoreCommits(repo: Repository, user: GitHubUser) {
     // First, get the date range of existing commits for this user and repo
-    const existingCommits = await this.prisma.commit.findMany({
+    const existingCommits = await prisma.commit.findMany({
       where: {
         repoId: repo.id,
         OR: [
@@ -227,7 +231,7 @@ export class GitHubScraper {
 
             // Try to create the commit first
             try {
-              await this.prisma.commit.create({
+              await prisma.commit.create({
                 data: commitCreateData
               });
               this.log(`Created new commit ${commitData.sha}`);
@@ -236,7 +240,7 @@ export class GitHubScraper {
               // If commit exists, update its relationships
               if (error.code === 'P2002') {
                 this.log(`Updating existing commit ${commitData.sha}`);
-                await this.prisma.commit.update({
+                await prisma.commit.update({
                   where: { id: commitData.sha },
                   data: {
                     fetchedFromRequest: {
@@ -334,7 +338,7 @@ export class GitHubScraper {
         await this.fetchAndStoreOrganization(org.login);
         this.log(`Connecting user ${user.login} to organization ${org.login}`);
         // Update user-org relationship
-        await this.prisma.gitHubUser.update({
+        await prisma.gitHubUser.update({
           where: { id: user.id },
           data: {
             organizations: {
@@ -380,7 +384,7 @@ export class GitHubScraper {
 
     // Update user's last fetched time
     this.log(`Updating last fetched time for ${user.login}`);
-    await this.prisma.gitHubUser.update({
+    await prisma.gitHubUser.update({
       where: { id: user.id },
       data: { lastFetched: new Date() }
     });
@@ -388,11 +392,10 @@ export class GitHubScraper {
     this.log(`Completed data collection for ${user.login}`);
   }
 
-  async scrapeAllUsers() {
-    this.log('Starting full data collection');
-    const users = await this.prisma.gitHubUser.findMany();
-    this.log(`Found ${users.length} users to process`);
-
+  private async processUserBatch(users: GitHubUser[], workerId: number) {
+    this.workerId = workerId;
+    this.log(`Starting batch processing of ${users.length} users`);
+    
     for (const user of users) {
       try {
         await this.scrapeUser(user);
@@ -403,6 +406,42 @@ export class GitHubScraper {
       }
     }
 
-    this.log('Completed full data collection');
+    this.log(`Completed batch processing of ${users.length} users`);
+  }
+
+  async scrapeAllUsers(numWorkers: number = 3) {
+    if (numWorkers < 1) {
+      throw new Error('Number of workers must be at least 1');
+    }
+
+    this.log('Starting full data collection');
+    const users = await prisma.gitHubUser.findMany({
+      orderBy: {
+        lastFetched: 'asc'
+      }
+    });
+    this.log(`Found ${users.length} users to process`);
+
+    // Split users into chunks for parallel processing
+    const chunkSize = Math.ceil(users.length / numWorkers);
+    const chunks = Array.from({ length: numWorkers }, (_, i) => 
+      users.slice(i * chunkSize, (i + 1) * chunkSize)
+    );
+
+    // Create separate scraper instances for each worker
+    const workerPromises = chunks.map((chunk, index) => {
+      const workerScraper = new GitHubScraper(index);
+      return workerScraper.processUserBatch(chunk, index);
+    });
+
+    try {
+      await Promise.all(workerPromises);
+      this.log('Completed full data collection');
+    } catch (error) {
+      this.log('Error during parallel processing', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
   }
 } 
