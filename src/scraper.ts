@@ -409,7 +409,7 @@ export class GitHubScraper {
     this.log(`Completed batch processing of ${users.length} users`);
   }
 
-  async scrapeAllUsers(numWorkers: number = 3) {
+  async scrapeAllUsers(numWorkers: number = 10) {
     if (numWorkers < 1) {
       throw new Error('Number of workers must be at least 1');
     }
