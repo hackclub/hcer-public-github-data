@@ -500,7 +500,8 @@ export class GitHubScraper {
         url: `/users/${user.login}/repos`,
         params: {
           type: 'all',
-          sort: 'updated',
+          sort: 'pushed',
+          direction: 'desc',
           per_page: 100
         }
       });
