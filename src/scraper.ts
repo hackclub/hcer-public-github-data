@@ -467,13 +467,13 @@ export class GitHubScraper {
 
       // Fetch user's organizations
       this.log(`Fetching organizations for ${user.login}`);
-      const { data: orgs, requestId: orgsRequestId } = await this.github.request({
+      const { data: orgs } = await this.github.request({
         url: `/users/${user.login}/orgs`
       });
 
       this.log(`Found ${orgs.length} organizations for ${user.login}`);
 
-      // Store each organization
+      // Store each organization and collect their repositories
       for (const org of orgs) {
         try {
           await this.fetchAndStoreOrganization(org.login);
@@ -487,6 +487,44 @@ export class GitHubScraper {
               }
             }
           });
+
+          // Fetch organization's repositories
+          this.log(`Fetching repositories for organization ${org.login}`);
+          const { data: orgRepos } = await this.github.request({
+            url: `/orgs/${org.login}/repos`,
+            params: {
+              type: 'all',
+              sort: 'pushed',
+              direction: 'desc',
+              per_page: 100
+            }
+          });
+
+          this.log(`Found ${orgRepos.length} repositories for organization ${org.login}`);
+
+          // Process each org repository
+          for (const repo of orgRepos) {
+            try {
+              const storedRepo = await this.fetchAndStoreRepository(
+                org.login,
+                repo.name,
+                'org'
+              );
+
+              const shouldSkip = await this.shouldSkipRepoForUser(user, storedRepo);
+              if (shouldSkip) {
+                this.log(`Skipping ${storedRepo.fullName} for user ${user.login} - no new pushes since last scrape`);
+                continue;
+              }
+
+              const userRepoJob = await this.startUserRepoScrape(user, storedRepo);
+              await this.fetchAndStoreCommits(storedRepo, user, userRepoJob);
+            } catch (error) {
+              this.log(`Error processing organization repository ${repo.full_name}`, {
+                error: error instanceof Error ? error.message : 'Unknown error'
+              });
+            }
+          }
         } catch (error) {
           this.log(`Error processing organization ${org.login}`, {
             error: error instanceof Error ? error.message : 'Unknown error'
@@ -494,9 +532,9 @@ export class GitHubScraper {
         }
       }
 
-      // Fetch user's repositories
-      this.log(`Fetching repositories for ${user.login}`);
-      const { data: repos } = await this.github.request({
+      // Fetch user's personal repositories
+      this.log(`Fetching personal repositories for ${user.login}`);
+      const { data: userRepos } = await this.github.request({
         url: `/users/${user.login}/repos`,
         params: {
           type: 'all',
@@ -506,10 +544,10 @@ export class GitHubScraper {
         }
       });
 
-      this.log(`Found ${repos.length} repositories for ${user.login}`);
+      this.log(`Found ${userRepos.length} personal repositories for ${user.login}`);
 
-      // Store each repository and its commits
-      for (const repo of repos) {
+      // Process each personal repository
+      for (const repo of userRepos) {
         try {
           const storedRepo = await this.fetchAndStoreRepository(
             repo.owner.login,
