@@ -102,6 +102,19 @@ export class GitHubAPI {
       return true;
     } catch (error: any) {
       if (error.status === 401) {
+        // Try to refresh the token before marking it as invalid
+        try {
+          if (token.refreshToken) {
+            const refreshedToken = await this.refreshToken(token);
+            // Test the refreshed token
+            const octokit = new Octokit({ auth: refreshedToken.accessToken });
+            await octokit.request('GET /user');
+            return true;
+          }
+        } catch (refreshError) {
+          console.log(`Failed to refresh token ${token.id} (${token.username}):`, refreshError);
+        }
+        
         console.log(`Token ${token.id} (${token.username}) has been revoked`);
         await this.markTokenAsInvalid(token);
         return false;
