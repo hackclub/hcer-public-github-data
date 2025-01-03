@@ -84,6 +84,7 @@ model GitHubUser {
   organizations Organization[] @relation("UserOrganizations")
   authoredCommits Commit[] @relation("CommitAuthor")
   committedCommits Commit[] @relation("CommitCommitter")
+  scrapeJobs UserRepositoryScrapeJob[]
 
   @@index([fetchedFromRequestId])
 }
@@ -130,6 +131,7 @@ model Repository {
   organization Organization? @relation("OrgRepositories", fields: [orgId], references: [id])
   orgId        Int?
   commits      Commit[]
+  scrapeJobs   UserRepositoryScrapeJob[]
 
   @@index([fetchedFromRequestId])
   @@index([ownerId])
@@ -160,4 +162,48 @@ model Commit {
   @@index([repoId])
   @@index([authorId])
   @@index([committerId])
+}
+
+model ScrapeJob {
+  id            String   @id @default(uuid())
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  erroredAt     DateTime?
+  error         String?
+  status        String   @default("RUNNING") // RUNNING, COMPLETED, ERRORED
+  type          String   // e.g. "FULL_SYNC", "USER_SYNC", etc.
+  metadata      Json?    // Additional metadata about the job
+  lastHeartbeatAt DateTime @default(now())
+
+  // Relations
+  userRepoScrapes UserRepositoryScrapeJob[]
+
+  @@index([status])
+  @@index([startedAt])
+  @@index([lastHeartbeatAt])
+}
+
+model UserRepositoryScrapeJob {
+  id            String   @id @default(uuid())
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  erroredAt     DateTime?
+  error         String?
+  status        String   @default("RUNNING") // RUNNING, COMPLETED, ERRORED
+  newCommits    Int      @default(0)
+  
+  // Relations
+  scrapeJob    ScrapeJob @relation(fields: [scrapeJobId], references: [id])
+  scrapeJobId  String
+  user         GitHubUser @relation(fields: [userId], references: [id])
+  userId       Int
+  repository   Repository @relation(fields: [repoId], references: [id])
+  repoId       Int
+
+  @@unique([userId, repoId, scrapeJobId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([userId])
+  @@index([repoId])
+  @@index([scrapeJobId])
 } 

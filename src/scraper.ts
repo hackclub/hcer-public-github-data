@@ -1,4 +1,4 @@
-import { PrismaClient, GitHubUser, Organization, Repository } from '@prisma/client';
+import { PrismaClient, GitHubUser, Organization, Repository, ScrapeJob, UserRepositoryScrapeJob } from '@prisma/client';
 import { GitHubAPI } from './github';
 
 // Share a single PrismaClient instance across all scrapers
@@ -7,10 +7,15 @@ const prisma = new PrismaClient();
 export class GitHubScraper {
   private github: GitHubAPI;
   private workerId?: number;
+  private currentScrapeJob?: ScrapeJob;
+  private currentScrapeJobId?: string;
+  private heartbeatInterval?: NodeJS.Timeout;
+  private readonly HEARTBEAT_INTERVAL = 5000; // 5 seconds
 
-  constructor(workerId?: number) {
+  constructor(workerId?: number, scrapeJobId?: string) {
     this.github = new GitHubAPI();
     this.workerId = workerId;
+    this.currentScrapeJobId = scrapeJobId;
   }
 
   private log(message: string, data?: any) {
@@ -129,7 +134,169 @@ export class GitHubScraper {
     });
   }
 
-  private async fetchAndStoreCommits(repo: Repository, user: GitHubUser) {
+  private async updateHeartbeat() {
+    if (!this.currentScrapeJobId) return;
+
+    try {
+      await prisma.scrapeJob.update({
+        where: { id: this.currentScrapeJobId },
+        data: { lastHeartbeatAt: new Date() }
+      });
+    } catch (error) {
+      this.log('Failed to update heartbeat', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  private startHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      this.updateHeartbeat();
+    }, this.HEARTBEAT_INTERVAL);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = undefined;
+    }
+  }
+
+  private async startScrapeJob(type: string, metadata?: any): Promise<ScrapeJob> {
+    this.log(`Starting new scrape job of type ${type}`);
+    
+    const job = await prisma.scrapeJob.create({
+      data: {
+        type,
+        metadata: metadata || {},
+        status: 'RUNNING',
+        lastHeartbeatAt: new Date()
+      }
+    });
+
+    this.currentScrapeJob = job;
+    this.currentScrapeJobId = job.id;
+    this.startHeartbeat();
+    return job;
+  }
+
+  private async completeScrapeJob(error?: string) {
+    if (!this.currentScrapeJob) return;
+
+    this.stopHeartbeat();
+
+    if (error) {
+      this.log(`Marking scrape job as errored: ${error}`);
+      await prisma.scrapeJob.update({
+        where: { id: this.currentScrapeJob.id },
+        data: {
+          status: 'ERRORED',
+          erroredAt: new Date(),
+          error
+        }
+      });
+    } else {
+      this.log('Marking scrape job as completed');
+      await prisma.scrapeJob.update({
+        where: { id: this.currentScrapeJob.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date()
+        }
+      });
+    }
+  }
+
+  private async getCurrentScrapeJob(): Promise<ScrapeJob> {
+    if (!this.currentScrapeJobId) {
+      throw new Error('No active scrape job');
+    }
+
+    if (!this.currentScrapeJob) {
+      this.currentScrapeJob = await prisma.scrapeJob.findUnique({
+        where: { id: this.currentScrapeJobId }
+      });
+      
+      if (!this.currentScrapeJob) {
+        throw new Error(`Could not find scrape job with ID ${this.currentScrapeJobId}`);
+      }
+
+      // Start heartbeat if we're attaching to an existing job
+      this.startHeartbeat();
+    }
+
+    return this.currentScrapeJob;
+  }
+
+  private async startUserRepoScrape(user: GitHubUser, repo: Repository): Promise<UserRepositoryScrapeJob> {
+    const scrapeJob = await this.getCurrentScrapeJob();
+
+    return await prisma.userRepositoryScrapeJob.create({
+      data: {
+        scrapeJob: { connect: { id: scrapeJob.id } },
+        user: { connect: { id: user.id } },
+        repository: { connect: { id: repo.id } },
+        status: 'RUNNING'
+      }
+    });
+  }
+
+  private async completeUserRepoScrape(job: UserRepositoryScrapeJob, newCommits: number, error?: string) {
+    if (error) {
+      this.log(`Marking user repo scrape as errored: ${error}`);
+      await prisma.userRepositoryScrapeJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'ERRORED',
+          erroredAt: new Date(),
+          error,
+          newCommits
+        }
+      });
+    } else {
+      this.log('Marking user repo scrape as completed');
+      await prisma.userRepositoryScrapeJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          newCommits
+        }
+      });
+    }
+  }
+
+  private async shouldSkipRepoForUser(user: GitHubUser, repo: Repository): Promise<boolean> {
+    // Find the last successful scrape for this user/repo combination
+    const lastSuccessfulScrape = await prisma.userRepositoryScrapeJob.findFirst({
+      where: {
+        userId: user.id,
+        repoId: repo.id,
+        status: 'COMPLETED'
+      },
+      orderBy: {
+        completedAt: 'desc'
+      }
+    });
+
+    if (!lastSuccessfulScrape) {
+      return false; // No successful scrape yet, don't skip
+    }
+
+    // If the repo hasn't been pushed to since our last scrape, we can skip it
+    if (lastSuccessfulScrape.completedAt > repo.updatedAt) {
+      this.log(`Skipping ${repo.fullName} for user ${user.login} - no new pushes since last scrape`);
+      return true;
+    }
+
+    return false;
+  }
+
+  private async fetchAndStoreCommits(repo: Repository, user: GitHubUser, userRepoJob: UserRepositoryScrapeJob) {
     // First, get the date range of existing commits for this user and repo
     const existingCommits = await prisma.commit.findMany({
       where: {
@@ -316,80 +483,99 @@ export class GitHubScraper {
       totalNewCommits,
       existingCommits: existingCommits.length
     });
+
+    try {
+      await this.completeUserRepoScrape(userRepoJob, totalNewCommits);
+    } catch (error: any) {
+      await this.completeUserRepoScrape(userRepoJob, totalNewCommits, error.message);
+      throw error;
+    }
   }
 
   async scrapeUser(user: GitHubUser) {
-    this.log(`Starting data collection for user ${user.login}`, {
-      userId: user.id,
-      name: user.name
-    });
+    try {
+      this.log(`Starting data collection for user ${user.login}`, {
+        userId: user.id,
+        name: user.name
+      });
 
-    // Fetch user's organizations
-    this.log(`Fetching organizations for ${user.login}`);
-    const { data: orgs, requestId: orgsRequestId } = await this.github.request({
-      url: `/users/${user.login}/orgs`
-    });
+      // Fetch user's organizations
+      this.log(`Fetching organizations for ${user.login}`);
+      const { data: orgs, requestId: orgsRequestId } = await this.github.request({
+        url: `/users/${user.login}/orgs`
+      });
 
-    this.log(`Found ${orgs.length} organizations for ${user.login}`);
+      this.log(`Found ${orgs.length} organizations for ${user.login}`);
 
-    // Store each organization
-    for (const org of orgs) {
-      try {
-        await this.fetchAndStoreOrganization(org.login);
-        this.log(`Connecting user ${user.login} to organization ${org.login}`);
-        // Update user-org relationship
-        await prisma.gitHubUser.update({
-          where: { id: user.id },
-          data: {
-            organizations: {
-              connect: { login: org.login }
+      // Store each organization
+      for (const org of orgs) {
+        try {
+          await this.fetchAndStoreOrganization(org.login);
+          this.log(`Connecting user ${user.login} to organization ${org.login}`);
+          // Update user-org relationship
+          await prisma.gitHubUser.update({
+            where: { id: user.id },
+            data: {
+              organizations: {
+                connect: { login: org.login }
+              }
             }
+          });
+        } catch (error) {
+          this.log(`Error processing organization ${org.login}`, {
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Fetch user's repositories
+      this.log(`Fetching repositories for ${user.login}`);
+      const { data: repos } = await this.github.request({
+        url: `/users/${user.login}/repos`,
+        params: {
+          type: 'all',
+          sort: 'updated',
+          per_page: 100
+        }
+      });
+
+      this.log(`Found ${repos.length} repositories for ${user.login}`);
+
+      // Store each repository and its commits
+      for (const repo of repos) {
+        try {
+          const storedRepo = await this.fetchAndStoreRepository(
+            repo.owner.login,
+            repo.name,
+            repo.owner.type.toLowerCase() as 'user' | 'org'
+          );
+
+          const shouldSkip = await this.shouldSkipRepoForUser(user, storedRepo);
+          if (shouldSkip) {
+            this.log(`Skipping ${storedRepo.fullName} for user ${user.login} - no new pushes since last scrape`);
+            continue;
           }
-        });
-      } catch (error) {
-        this.log(`Error processing organization ${org.login}`, {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
+
+          const userRepoJob = await this.startUserRepoScrape(user, storedRepo);
+          await this.fetchAndStoreCommits(storedRepo, user, userRepoJob);
+        } catch (error) {
+          this.log(`Error processing repository ${repo.full_name}`, {
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
       }
+
+      // Update user's last fetched time
+      this.log(`Updating last fetched time for ${user.login}`);
+      await prisma.gitHubUser.update({
+        where: { id: user.id },
+        data: { lastFetched: new Date() }
+      });
+
+      this.log(`Completed data collection for ${user.login}`);
+    } catch (error: any) {
+      throw error;
     }
-
-    // Fetch user's repositories
-    this.log(`Fetching repositories for ${user.login}`);
-    const { data: repos } = await this.github.request({
-      url: `/users/${user.login}/repos`,
-      params: {
-        type: 'all',
-        sort: 'updated',
-        per_page: 100
-      }
-    });
-
-    this.log(`Found ${repos.length} repositories for ${user.login}`);
-
-    // Store each repository and its commits
-    for (const repo of repos) {
-      try {
-        const storedRepo = await this.fetchAndStoreRepository(
-          repo.owner.login,
-          repo.name,
-          repo.owner.type.toLowerCase() as 'user' | 'org'
-        );
-        await this.fetchAndStoreCommits(storedRepo, user);
-      } catch (error) {
-        this.log(`Error processing repository ${repo.full_name}`, {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    }
-
-    // Update user's last fetched time
-    this.log(`Updating last fetched time for ${user.login}`);
-    await prisma.gitHubUser.update({
-      where: { id: user.id },
-      data: { lastFetched: new Date() }
-    });
-
-    this.log(`Completed data collection for ${user.login}`);
   }
 
   private async processUserBatch(users: GitHubUser[], workerId: number) {
@@ -410,37 +596,47 @@ export class GitHubScraper {
   }
 
   async scrapeAllUsers(numWorkers: number = 10) {
-    if (numWorkers < 1) {
-      throw new Error('Number of workers must be at least 1');
-    }
-
-    this.log('Starting full data collection');
-    const users = await prisma.gitHubUser.findMany({
-      orderBy: {
-        lastFetched: 'asc'
-      }
-    });
-    this.log(`Found ${users.length} users to process`);
-
-    // Split users into chunks for parallel processing
-    const chunkSize = Math.ceil(users.length / numWorkers);
-    const chunks = Array.from({ length: numWorkers }, (_, i) => 
-      users.slice(i * chunkSize, (i + 1) * chunkSize)
-    );
-
-    // Create separate scraper instances for each worker
-    const workerPromises = chunks.map((chunk, index) => {
-      const workerScraper = new GitHubScraper(index);
-      return workerScraper.processUserBatch(chunk, index);
-    });
-
     try {
-      await Promise.all(workerPromises);
-      this.log('Completed full data collection');
-    } catch (error) {
-      this.log('Error during parallel processing', {
-        error: error instanceof Error ? error.message : 'Unknown error'
+      const scrapeJob = await this.startScrapeJob('FULL_SYNC');
+      if (numWorkers < 1) {
+        throw new Error('Number of workers must be at least 1');
+      }
+
+      this.log('Starting full data collection');
+      const users = await prisma.gitHubUser.findMany({
+        orderBy: {
+          lastFetched: 'asc'
+        }
       });
+      this.log(`Found ${users.length} users to process`);
+
+      // Split users into chunks for parallel processing
+      const chunkSize = Math.ceil(users.length / numWorkers);
+      const chunks = Array.from({ length: numWorkers }, (_, i) => 
+        users.slice(i * chunkSize, (i + 1) * chunkSize)
+      );
+
+      // Create separate scraper instances for each worker
+      const workerPromises = chunks.map((chunk, index) => {
+        const workerScraper = new GitHubScraper(index, scrapeJob.id);
+        return workerScraper.processUserBatch(chunk, index);
+      });
+
+      try {
+        await Promise.all(workerPromises);
+        this.log('Completed full data collection');
+      } catch (error) {
+        this.log('Error during parallel processing', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        throw error;
+      } finally {
+        this.stopHeartbeat();
+      }
+
+      await this.completeScrapeJob();
+    } catch (error: any) {
+      await this.completeScrapeJob(error.message);
       throw error;
     }
   }
