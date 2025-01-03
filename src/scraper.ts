@@ -322,8 +322,8 @@ export class GitHubScraper {
       oldestCommitDate = existingCommits[existingCommits.length - 1].committedDate;
       this.log(`Found existing commits for ${repo.fullName}`, {
         count: existingCommits.length,
-        newestCommit: newestCommitDate.toISOString(),
-        oldestCommit: oldestCommitDate.toISOString()
+        newestCommit: newestCommitDate?.toISOString(),
+        oldestCommit: oldestCommitDate?.toISOString()
       });
     }
 
@@ -363,78 +363,44 @@ export class GitHubScraper {
 
         this.log(`Found ${searchData.items.length} commits on page ${page}`);
 
-        // Store each commit
-        for (const commitData of searchData.items) {
+        // Get all commit SHAs from this batch
+        const commitShas = searchData.items.map(item => item.sha);
+        
+        // Check which commits already exist in the database
+        const existingCommits = await prisma.commit.findMany({
+          where: {
+            id: { in: commitShas }
+          },
+          select: {
+            id: true
+          }
+        });
+        const existingCommitShas = new Set(existingCommits.map(c => c.id));
+
+        // Prepare batch of new commits
+        const newCommits = searchData.items
+          .filter(commitData => !existingCommitShas.has(commitData.sha))
+          .map(commitData => ({
+            id: commitData.sha,
+            message: commitData.commit.message,
+            authoredDate: new Date(commitData.commit.author.date),
+            committedDate: new Date(commitData.commit.committer.date),
+            fetchedFromRequestId: requestId,
+            repoId: repo.id,
+            authorId: commitData.author?.id || null,
+            committerId: commitData.committer?.id || null
+          }));
+
+        if (newCommits.length > 0) {
           try {
-            const commitCreateData = {
-              id: commitData.sha,
-              message: commitData.commit.message,
-              authoredDate: new Date(commitData.commit.author.date),
-              committedDate: new Date(commitData.commit.committer.date),
-              fetchedFromRequest: {
-                connect: { id: requestId }
-              },
-              repository: { 
-                connect: { id: repo.id }
-              },
-              ...(commitData.author?.id ? {
-                author: { 
-                  connect: { id: commitData.author.id }
-                }
-              } : {}),
-              ...(commitData.committer?.id ? {
-                committer: { 
-                  connect: { id: commitData.committer.id }
-                }
-              } : {})
-            };
-
-            this.log(`Processing commit ${commitData.sha}`, {
-              message: commitData.commit.message.split('\n')[0], // First line only
-              authorId: commitData.author?.id,
-              committerId: commitData.committer?.id,
-              date: commitData.commit.committer.date
+            await prisma.commit.createMany({
+              data: newCommits,
+              skipDuplicates: true // Extra safety measure
             });
-
-            // Try to create the commit first
-            try {
-              await prisma.commit.create({
-                data: commitCreateData
-              });
-              this.log(`Created new commit ${commitData.sha}`);
-              totalCommits++;
-            } catch (error: any) {
-              // If commit exists, update its relationships
-              if (error.code === 'P2002') {
-                this.log(`Updating existing commit ${commitData.sha}`);
-                await prisma.commit.update({
-                  where: { id: commitData.sha },
-                  data: {
-                    fetchedFromRequest: {
-                      connect: { id: requestId }
-                    },
-                    repository: { 
-                      connect: { id: repo.id }
-                    },
-                    ...(commitData.author?.id ? {
-                      author: { 
-                        connect: { id: commitData.author.id }
-                      }
-                    } : {}),
-                    ...(commitData.committer?.id ? {
-                      committer: { 
-                        connect: { id: commitData.committer.id }
-                      }
-                    } : {})
-                  }
-                });
-                totalCommits++;
-              } else {
-                throw error;
-              }
-            }
+            this.log(`Created ${newCommits.length} new commits in batch`);
+            totalCommits += newCommits.length;
           } catch (error) {
-            this.log(`Error processing commit ${commitData.sha}`, {
+            this.log(`Error processing commit batch`, {
               error: error instanceof Error ? error.message : 'Unknown error'
             });
           }
