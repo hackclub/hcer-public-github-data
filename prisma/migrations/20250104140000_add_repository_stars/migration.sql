@@ -6,7 +6,7 @@ ALTER TABLE "Repository" ADD COLUMN "stars" INTEGER NOT NULL DEFAULT 0;
 UPDATE "Repository" r
 SET stars = COALESCE(
   CASE 
-    WHEN jsonb_typeof(ar."responseBody"->>'stargazers_count') = 'number' 
+    WHEN jsonb_typeof(ar."responseBody"->'stargazers_count') = 'number' 
     THEN (ar."responseBody"->>'stargazers_count')::integer
     ELSE 0
   END,
