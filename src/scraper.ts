@@ -117,6 +117,7 @@ export class GitHubScraper {
         description: repoData.description || null,
         isPrivate: repoData.private,
         isFork: repoData.fork,
+        stars: repoData.stargazers_count || 0,
         fetchedFromRequest: {
           connect: { id: requestId }
         },
