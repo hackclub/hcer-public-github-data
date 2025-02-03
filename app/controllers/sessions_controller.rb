@@ -15,23 +15,16 @@ class SessionsController < ApplicationController
         
         begin
           # Get REST API rate limits
-          rest_limits = client.rate_limit
+          rest_limits = client.get('/rate_limit')
           core_limits = rest_limits.resources.core
           search_limits = rest_limits.resources.search
-          
-          # Get GraphQL API rate limit
-          graphql_query = '{ rateLimit { remaining resetAt } }'
-          graphql_response = client.post('/graphql', { query: graphql_query }.to_json)
-          graphql_limits = graphql_response.data.rate_limit
+          graphql_limits = rest_limits.resources.graphql
           
           # Update all rate limits
           access_token.update_rate_limits(
-            core: { remaining: core_limits.remaining, reset: core_limits.resets_at.to_i },
-            search: { remaining: search_limits.remaining, reset: search_limits.resets_at.to_i },
-            graphql: { 
-              remaining: graphql_limits.remaining,
-              reset: Time.parse(graphql_limits.reset_at).to_i
-            }
+            core: { remaining: core_limits.remaining, reset: core_limits.reset },
+            search: { remaining: search_limits.remaining, reset: search_limits.reset },
+            graphql: { remaining: graphql_limits.remaining, reset: graphql_limits.reset }
           )
 
           flash[:success] = 'Thanks for donating your GitHub token! It will be used to gather Hack Club statistics.'

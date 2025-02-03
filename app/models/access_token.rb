@@ -23,6 +23,7 @@ class AccessToken < ApplicationRecord
 
   # Update rate limits after using the token
   def update_rate_limits(core: nil, search: nil, graphql: nil)
+    debugger
     updates = {}
     
     if core
@@ -48,6 +49,8 @@ class AccessToken < ApplicationRecord
 
     updates[:last_used_at] = Time.current
     update!(updates)
+
+    debugger
   end
 
   # Create an Octokit client with this token
