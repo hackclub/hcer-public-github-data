@@ -12,10 +12,10 @@ services:
       - bundle_cache:/usr/local/bundle
     environment:
       - RAILS_ENV=development
-      - DATABASE_URL=postgres://postgres:password@db:5432/app_development
+      - DATABASE_URL=postgres://postgres:secureorpheus123@db:5432/app_development
       - POSTGRES_HOST=db
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=secureorpheus123
     depends_on:
       - db
 
@@ -24,7 +24,7 @@ services:
     volumes:
       - hcer_public_gh_data_postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=secureorpheus123
       - POSTGRES_USER=postgres
       - POSTGRES_DB=app_development
     ports:
