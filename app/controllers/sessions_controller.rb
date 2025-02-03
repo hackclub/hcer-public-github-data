@@ -3,10 +3,10 @@ class SessionsController < ApplicationController
     auth = request.env['omniauth.auth']
     
     begin
-      access_token = AccessToken.find_or_initialize_by(ghId: auth.uid)
+      access_token = AccessToken.find_or_initialize_by(gh_id: auth.uid)
       access_token.assign_attributes(
         username: auth.info.nickname,
-        accessToken: auth.credentials.token
+        access_token: auth.credentials.token
       )
 
       if access_token.save

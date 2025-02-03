@@ -1,25 +1,25 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
-  ghId: 
+  gh_id: 1
   username: MyString
-  accessToken: MyString
-  lastUsedAt: 2025-02-03 21:00:57
-  coreRateLimitRemaining: 1
-  coreRateLimitResetAt: 2025-02-03 21:00:57
-  searchRateLimitRemaining: 1
-  searchRateLimitResetAt: 2025-02-03 21:00:57
-  graphqlRateLimitRemaining: 1
-  graphqlRateLimitResetAt: 2025-02-03 21:00:57
+  access_token: MyString
+  last_used_at: 2025-02-03 21:00:57
+  core_rate_limit_remaining: 1
+  core_rate_limit_reset_at: 2025-02-03 21:00:57
+  search_rate_limit_remaining: 1
+  search_rate_limit_reset_at: 2025-02-03 21:00:57
+  graphql_rate_limit_remaining: 1
+  graphql_rate_limit_reset_at: 2025-02-03 21:00:57
 
 two:
-  ghId: 
-  username: MyString
-  accessToken: MyString
-  lastUsedAt: 2025-02-03 21:00:57
-  coreRateLimitRemaining: 1
-  coreRateLimitResetAt: 2025-02-03 21:00:57
-  searchRateLimitRemaining: 1
-  searchRateLimitResetAt: 2025-02-03 21:00:57
-  graphqlRateLimitRemaining: 1
-  graphqlRateLimitResetAt: 2025-02-03 21:00:57
+  gh_id: 2
+  username: MyString2
+  access_token: MyString
+  last_used_at: 2025-02-03 21:00:57
+  core_rate_limit_remaining: 1
+  core_rate_limit_reset_at: 2025-02-03 21:00:57
+  search_rate_limit_remaining: 1
+  search_rate_limit_reset_at: 2025-02-03 21:00:57
+  graphql_rate_limit_remaining: 1
+  graphql_rate_limit_reset_at: 2025-02-03 21:00:57

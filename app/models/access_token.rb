@@ -1,8 +1,8 @@
 class AccessToken < ApplicationRecord
   # Validations
-  validates :ghId, presence: true, uniqueness: true
+  validates :gh_id, presence: true, uniqueness: true
   validates :username, presence: true, uniqueness: true
-  validates :accessToken, presence: true
+  validates :access_token, presence: true
 
   # Scopes for finding available tokens
   scope :with_core_capacity, -> { where('core_rate_limit_remaining > ? OR core_rate_limit_reset_at < ?', 0, Time.current) }
@@ -23,7 +23,6 @@ class AccessToken < ApplicationRecord
 
   # Update rate limits after using the token
   def update_rate_limits(core: nil, search: nil, graphql: nil)
-    debugger
     updates = {}
     
     if core
@@ -49,13 +48,11 @@ class AccessToken < ApplicationRecord
 
     updates[:last_used_at] = Time.current
     update!(updates)
-
-    debugger
   end
 
   # Create an Octokit client with this token
   def client
-    @client ||= Octokit::Client.new(access_token: accessToken)
+    @client ||= Octokit::Client.new(access_token: access_token)
   end
 
   # Check if the token has capacity for a given API type
