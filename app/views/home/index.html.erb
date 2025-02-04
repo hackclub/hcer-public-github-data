@@ -4,7 +4,7 @@
   <div class="stats-box">
     <p><strong><%= pluralize(@access_tokens_count, 'Hack Clubber') %></strong> <%= @access_tokens_count == 1 ? 'has' : 'have' %> donated GitHub tokens so far.</p>
     <% if @latest_donor %>
-      <p>The most recent person to donate was <%= link_to do %><strong>@<%= @latest_donor %></strong><% end %> (about <%= time_ago_in_words(@latest_donation_time) %> ago).</p>
+      <p>The most recent person to donate was <%= link_to do %><strong>@<%= @latest_donor %></strong><% end %> (<%= time_ago_in_words(@latest_donation_time) %> ago).</p>
     <% end %>
   </div>
 
