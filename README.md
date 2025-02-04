@@ -1,24 +1,15 @@
-# README
+# HCer Public Github Data
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+Scripts and tooling to gather public GitHub data to calculate stats like whether Hack Clubbers code more during events like High Seas / Arcade than before.
 
-Things you may want to cover:
+## Tools
 
-* Ruby version
+### Proxy
 
-* System dependencies
+Make requests to `/gh/` to proxy requests to the GitHub API. You must pass `X-Proxy-API-Key` as an HTTP header with the value `proxy-api-key` (found in Rails credentials).
 
-* Configuration
+Example paths:
 
-* Database creation
-
-* Database initialization
-
-* How to run the test suite
-
-* Services (job queues, cache servers, search engines, etc.)
-
-* Deployment instructions
-
-* ...
+- `/gh/users/octocat`
+- `/gh/search/repositories?q=rails+in:name,description,readme`
+- `/gh/graphql`
