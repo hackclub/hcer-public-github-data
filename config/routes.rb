@@ -6,6 +6,9 @@ Rails.application.routes.draw do
   get '/auth/failure', to: 'sessions#failure'
   get '/auth/github', as: :github_login
 
+  # GitHub API proxy route
+  get '/gh/*path', to: 'github_proxy#proxy'
+
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check

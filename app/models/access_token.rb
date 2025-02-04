@@ -21,37 +21,26 @@ class AccessToken < ApplicationRecord
     end
   end
 
-  # Update rate limits after using the token
-  def update_rate_limits(core: nil, search: nil, graphql: nil)
-    updates = {}
+  # Fetch and assign rate limits from GitHub API response (does not save to database)
+  def assign_rate_limits_from_api
+    rest_limits = client.get('/rate_limit')
     
-    if core
-      updates.merge!(
-        core_rate_limit_remaining: core[:remaining],
-        core_rate_limit_reset_at: Time.at(core[:reset])
-      )
-    end
+    rate_limits = {
+      core_rate_limit_remaining: rest_limits.resources.core&.remaining,
+      core_rate_limit_reset_at: rest_limits.resources.core&.reset && Time.at(rest_limits.resources.core.reset),
+      search_rate_limit_remaining: rest_limits.resources.search&.remaining, 
+      search_rate_limit_reset_at: rest_limits.resources.search&.reset && Time.at(rest_limits.resources.search.reset),
+      graphql_rate_limit_remaining: rest_limits.resources.graphql&.remaining,
+      graphql_rate_limit_reset_at: rest_limits.resources.graphql&.reset && Time.at(rest_limits.resources.graphql.reset)
+    }
 
-    if search
-      updates.merge!(
-        search_rate_limit_remaining: search[:remaining],
-        search_rate_limit_reset_at: Time.at(search[:reset])
-      )
-    end
-
-    if graphql
-      updates.merge!(
-        graphql_rate_limit_remaining: graphql[:remaining],
-        graphql_rate_limit_reset_at: Time.at(graphql[:reset])
-      )
-    end
-
-    updates[:last_used_at] = Time.current
-    update!(updates)
+    assign_attributes(rate_limits)
+    rate_limits
   end
 
   # Create an Octokit client with this token
   def client
+    self.last_used_at = Time.current
     @client ||= Octokit::Client.new(access_token: access_token)
   end
 
