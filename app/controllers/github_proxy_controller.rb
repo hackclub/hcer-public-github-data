@@ -6,16 +6,23 @@ class GithubProxyController < ApplicationController
     path = request.path.sub('/gh/', '')
     query_string = request.query_string.present? ? "?#{request.query_string}" : ''
     full_path = "#{path}#{query_string}"
+    
+    api_type = if path.start_with?('search')
+                 :search
+               elsif path.start_with?('graphql')
+                 :graphql
+               else
+                 :core
+               end
 
-    token = AccessToken.find_available_token(:core)
+    token = AccessToken.find_available_token(api_type)
     raise 'No available tokens' unless token
 
     response = token.with_lock do
-      client = token.client
-      response = client.get(full_path)
+      resp = token.client.get(full_path)
       token.assign_rate_limits_from_api
       token.save!
-      response
+      resp.to_hash
     rescue Octokit::Error => e
       token.assign_rate_limits_from_api
       token.save!
