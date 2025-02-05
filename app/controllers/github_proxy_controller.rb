@@ -3,7 +3,7 @@ class GithubProxyController < ApplicationController
   rescue_from StandardError, with: :handle_error
 
   CACHE_VERSION = 'v1'
-  CACHE_EXPIRATION = 1.days
+  CACHE_EXPIRATION = 1.day
 
   def proxy
     path = request.path.sub('/gh/', '')
