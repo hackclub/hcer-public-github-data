@@ -82,9 +82,9 @@ production:
   primary: &primary_production
     <<: *default
     database: app_production
-    host: <%= ENV.fetch("DB_HOST") %>
-    username: <%= ENV.fetch("DB_USERNAME") %>
-    password: <%= ENV.fetch("DB_PASSWORD") %>
+    host: <%= ENV["DB_HOST"] %>
+    username: <%= ENV["DB_USERNAME"] %>
+    password: <%= ENV["DB_PASSWORD"] %>
     port: <%= ENV.fetch("DB_PORT", 5432) %>
   cache:
     <<: *primary_production
