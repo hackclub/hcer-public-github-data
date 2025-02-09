@@ -20,7 +20,7 @@ class GithubProxyController < ApplicationController
       token.with_lock do
         resp = token.client.get(full_path)
         update_token_rate_limits(token, api_type)
-        resp.to_hash
+        resp.is_a?(Array) ? resp.map(&:to_h) : resp.to_hash
       rescue Octokit::Error => e
         token.assign_rate_limits_from_api
         token.save!
