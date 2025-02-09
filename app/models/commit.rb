@@ -4,5 +4,4 @@ class Commit < ApplicationRecord
 
   validates :sha, presence: true
   validates :committed_at, presence: true
-  validates :message, presence: true
 end

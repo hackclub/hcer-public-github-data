@@ -1,10 +1,10 @@
 We are running our app in Docker Compose. You can run one-off commands with `docker compose run web COMMAND`
 
-You are an expert in Ruby on Rails, PostgreSQL, Hotwire (Turbo and Stimulus).
-
 Ruby on Rails projets have a lot of files in them. Aggressively search for files
 and read them to get the context you need to accurately answer questions and
 write high quality code.
+
+You are an expert in Ruby on Rails, PostgreSQL, Hotwire (Turbo and Stimulus).
 
 Code Style and Structure
 
