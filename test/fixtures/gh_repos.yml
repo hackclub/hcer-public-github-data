@@ -1,0 +1,13 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  gh_id: 
+  name: MyString
+  gh_user: one
+  gh_org: one
+
+two:
+  gh_id: 
+  name: MyString
+  gh_user: two
+  gh_org: two

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_02_03_215353) do
+ActiveRecord::Schema[8.0].define(version: 2025_02_09_225844) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -34,4 +34,62 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_03_215353) do
     t.index ["search_rate_limit_remaining", "search_rate_limit_reset_at"], name: "idx_on_search_rate_limit_remaining_search_rate_limi_7579e5db20"
     t.index ["username"], name: "index_access_tokens_on_username", unique: true
   end
+
+  create_table "commits", primary_key: "sha", id: :string, force: :cascade do |t|
+    t.bigint "gh_user_id", null: false
+    t.datetime "committed_at", null: false
+    t.text "message", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gh_user_id"], name: "index_commits_on_gh_user_id"
+  end
+
+  create_table "commits_gh_repos", id: false, force: :cascade do |t|
+    t.bigint "commit_id", null: false
+    t.bigint "gh_repo_id", null: false
+    t.index ["commit_id", "gh_repo_id"], name: "index_commits_gh_repos_on_commit_id_and_gh_repo_id"
+    t.index ["gh_repo_id", "commit_id"], name: "index_commits_gh_repos_on_gh_repo_id_and_commit_id"
+  end
+
+  create_table "gh_orgs", force: :cascade do |t|
+    t.bigint "gh_id", null: false
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gh_id"], name: "index_gh_orgs_on_gh_id", unique: true
+    t.index ["name"], name: "index_gh_orgs_on_name", unique: true
+  end
+
+  create_table "gh_orgs_users", id: false, force: :cascade do |t|
+    t.bigint "gh_user_id", null: false
+    t.bigint "gh_org_id", null: false
+    t.index ["gh_org_id", "gh_user_id"], name: "index_gh_orgs_users_on_gh_org_id_and_gh_user_id"
+    t.index ["gh_user_id", "gh_org_id"], name: "index_gh_orgs_users_on_gh_user_id_and_gh_org_id", unique: true
+  end
+
+  create_table "gh_repos", force: :cascade do |t|
+    t.bigint "gh_id", null: false
+    t.string "name", null: false
+    t.bigint "gh_user_id"
+    t.bigint "gh_org_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gh_id"], name: "index_gh_repos_on_gh_id", unique: true
+    t.index ["gh_org_id"], name: "index_gh_repos_on_gh_org_id"
+    t.index ["gh_user_id"], name: "index_gh_repos_on_gh_user_id"
+    t.index ["name"], name: "index_gh_repos_on_name"
+  end
+
+  create_table "gh_users", force: :cascade do |t|
+    t.bigint "gh_id", null: false
+    t.string "username", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gh_id"], name: "index_gh_users_on_gh_id", unique: true
+    t.index ["username"], name: "index_gh_users_on_username", unique: true
+  end
+
+  add_foreign_key "commits", "gh_users"
+  add_foreign_key "gh_repos", "gh_orgs"
+  add_foreign_key "gh_repos", "gh_users"
 end
