@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_02_10_002548) do
+ActiveRecord::Schema[8.0].define(version: 2025_02_10_003844) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -74,10 +74,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_10_002548) do
     t.bigint "gh_org_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "description"
+    t.string "homepage"
+    t.string "language"
+    t.datetime "repo_created_at"
+    t.datetime "repo_updated_at"
+    t.datetime "pushed_at"
+    t.integer "stargazers_count", default: 0
+    t.integer "forks_count", default: 0
+    t.integer "watchers_count", default: 0
+    t.integer "open_issues_count", default: 0
+    t.integer "size", default: 0
+    t.boolean "private", default: false
+    t.boolean "archived", default: false
+    t.boolean "disabled", default: false
+    t.boolean "fork", default: false
+    t.string "topics", default: [], array: true
+    t.string "default_branch"
+    t.boolean "has_issues", default: true
+    t.boolean "has_wiki", default: true
+    t.boolean "has_discussions", default: false
+    t.index ["archived"], name: "index_gh_repos_on_archived"
+    t.index ["fork"], name: "index_gh_repos_on_fork"
+    t.index ["forks_count"], name: "index_gh_repos_on_forks_count"
     t.index ["gh_id"], name: "index_gh_repos_on_gh_id", unique: true
     t.index ["gh_org_id"], name: "index_gh_repos_on_gh_org_id"
     t.index ["gh_user_id"], name: "index_gh_repos_on_gh_user_id"
+    t.index ["language"], name: "index_gh_repos_on_language"
     t.index ["name"], name: "index_gh_repos_on_name"
+    t.index ["private"], name: "index_gh_repos_on_private"
+    t.index ["stargazers_count"], name: "index_gh_repos_on_stargazers_count"
+    t.index ["topics"], name: "index_gh_repos_on_topics", using: :gin
   end
 
   create_table "gh_users", force: :cascade do |t|

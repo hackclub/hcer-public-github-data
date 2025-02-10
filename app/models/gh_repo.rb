@@ -7,6 +7,14 @@ class GhRepo < ApplicationRecord
   validates :name, presence: true
   validate :must_belong_to_user_or_org
 
+  # Scopes for common queries
+  scope :active, -> { where(archived: false, disabled: false) }
+  scope :public_repos, -> { where(private: false) }
+  scope :by_language, ->(language) { where(language: language) }
+  scope :popular, -> { order(stargazers_count: :desc) }
+  scope :recently_pushed, -> { order(pushed_at: :desc) }
+  scope :non_forks, -> { where(fork: false) }
+
   private
 
   def must_belong_to_user_or_org

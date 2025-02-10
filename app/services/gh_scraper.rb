@@ -144,27 +144,103 @@ module GhScraper
         repo.gh_user = nil
       end
 
-      repo.update!(name: repo_data['name'])
+      # Update all repository fields
+      repo.update!(
+        name: repo_data['name'],
+        description: repo_data['description'],
+        homepage: repo_data['homepage'],
+        language: repo_data['language'],
+        repo_created_at: repo_data['created_at'],
+        repo_updated_at: repo_data['updated_at'],
+        pushed_at: repo_data['pushed_at'],
+        stargazers_count: repo_data['stargazers_count'],
+        forks_count: repo_data['forks_count'],
+        watchers_count: repo_data['watchers_count'],
+        open_issues_count: repo_data['open_issues_count'],
+        size: repo_data['size'],
+        private: repo_data['private'],
+        archived: repo_data['archived'],
+        disabled: repo_data['disabled'],
+        fork: repo_data['fork'],
+        topics: repo_data['topics'] || [],
+        default_branch: repo_data['default_branch'],
+        has_issues: repo_data['has_issues'],
+        has_wiki: repo_data['has_wiki'],
+        has_discussions: repo_data['has_discussions']
+      )
 
       # Fetch commits for the repository
       Rails.logger.info "Scraping commits for repository: #{owner}/#{name}"
       commits = get_paginated("repos/#{owner}/#{name}/commits")
-      commits.each do |commit_data|
-        next unless commit_data['author'] # Skip commits without author data
+      
+      # Skip if no commits
+      return repo if commits.empty?
+
+      # Collect all commit authors first
+      author_data = commits.map { |c| c['author'] }
+                         .compact
+                         .select { |a| a['id'].present? && a['login'].present? }
+                         .uniq { |a| a['id'] }
+      author_records = author_data.map do |author|
+        {
+          gh_id: author['id'],
+          username: author['login'],
+          created_at: Time.current,
+          updated_at: Time.current
+        }
+      end
+
+      # Only proceed with bulk operations if we have valid authors
+      return repo if author_records.empty?
+
+      # Bulk upsert authors
+      GhUser.upsert_all(
+        author_records,
+        unique_by: :gh_id,
+        returning: false
+      )
+
+      # Map author gh_ids to primary keys
+      authors_by_gh_id = GhUser.where(gh_id: author_data.map { |a| a['id'] })
+                               .index_by(&:gh_id)
+
+      # Prepare commit records
+      commit_records = commits.map do |commit_data|
+        author = commit_data['author']
+        next unless author && author['id'].present? && authors_by_gh_id[author['id']]
         
-        # Create basic user record for the author
-        author = ensure_user(commit_data['author'])
+        {
+          sha: commit_data['sha'],
+          gh_user_id: authors_by_gh_id[author['id']].id,
+          message: commit_data.dig('commit', 'message'),
+          committed_at: commit_data['commit']['author']['date'],
+          created_at: Time.current,
+          updated_at: Time.current
+        }
+      end.compact
 
-        # Create or update commit
-        commit = Commit.find_or_initialize_by(sha: commit_data['sha'])
-        commit.update!(
-          gh_user: author,
-          message: commit_data['commit']['message'],
-          committed_at: commit_data['commit']['author']['date']
-        )
+      # Bulk upsert commits
+      Commit.upsert_all(
+        commit_records,
+        unique_by: :sha,
+        returning: false
+      )
 
-        # Associate commit with repo if not already associated
-        repo.commits << commit unless repo.commit_ids.include?(commit.sha)
+      # Prepare commit-repo associations
+      commit_repo_records = commit_records.map do |commit|
+        {
+          commit_id: commit[:sha],
+          gh_repo_id: repo.id
+        }
+      end
+
+      # Bulk upsert commit-repo associations if we have any records
+      if commit_repo_records.any?
+        ActiveRecord::Base.connection.execute(<<~SQL)
+          INSERT INTO commits_gh_repos (commit_id, gh_repo_id)
+          VALUES #{commit_repo_records.map { |r| "(#{ActiveRecord::Base.connection.quote(r[:commit_id])}, #{r[:gh_repo_id]})" }.join(", ")}
+          ON CONFLICT (commit_id, gh_repo_id) DO NOTHING
+        SQL
       end
 
       repo
