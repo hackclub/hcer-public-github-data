@@ -215,4 +215,14 @@ td {
 
 .form-actions {
   margin-top: 2rem;
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.button-group .button {
+  margin: 0;
 } 

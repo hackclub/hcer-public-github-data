@@ -95,6 +95,33 @@ module Admin
       end
     end
 
+    def scrape_all
+      # Update timestamps first
+      TrackedGhUser.update_all(scrape_last_requested_at: Time.current)
+      
+      # Then enqueue jobs for all users
+      TrackedGhUser.find_each do |user|
+        ScrapeGithubUserJob.perform_later(user.id)
+      end
+
+      # Refresh the tracked users list with updated timestamps
+      @tracked_users = TrackedGhUser.order(scrape_last_requested_at: :desc)
+
+      respond_to do |format|
+        format.turbo_stream { 
+          flash.now[:notice] = "Started scraping data for all users"
+          render turbo_stream: [
+            turbo_stream.update("flash", partial: "shared/flash"),
+            turbo_stream.update("tracked_users_table", partial: "table", locals: { tracked_users: @tracked_users })
+          ]
+        }
+        format.html { 
+          flash[:notice] = "Started scraping data for all users"
+          redirect_to admin_tracked_gh_users_path
+        }
+      end
+    end
+
     private
 
     def scrape_status_badge(user)
