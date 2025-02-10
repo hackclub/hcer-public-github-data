@@ -21,7 +21,6 @@ module GhApi
     def self.request_paginated(path, params = {})
       results = []
       page = 1
-      api_type = determine_api_type(path)
 
       loop do
         page_params = params.merge(page: page, per_page: 100)
