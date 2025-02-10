@@ -1,5 +1,9 @@
 module Admin
   class TrackedGhUsersController < BaseController
+    include ActionView::RecordIdentifier
+    include ActionView::Helpers::TagHelper
+    helper_method :scrape_status_badge, :recently_requested?
+
     def index
       @tracked_users = TrackedGhUser
         .order(scrape_last_requested_at: :desc)
@@ -62,6 +66,49 @@ module Admin
         @tracked_gh_user = TrackedGhUser.new
         render :new
       end
+    end
+
+    def scrape
+      @tracked_user = TrackedGhUser.find(params[:id])
+      
+      # Update timestamp first
+      @tracked_user.update!(scrape_last_requested_at: Time.current)
+      
+      # Then enqueue the job
+      ScrapeGithubUserJob.perform_later(@tracked_user.id)
+
+      # Refresh the tracked users list with the updated timestamp
+      @tracked_users = TrackedGhUser.order(scrape_last_requested_at: :desc)
+
+      respond_to do |format|
+        format.turbo_stream { 
+          flash.now[:notice] = "Started scraping data for #{@tracked_user.username}"
+          render turbo_stream: [
+            turbo_stream.update("flash", partial: "shared/flash"),
+            turbo_stream.update("tracked_users_table", partial: "table", locals: { tracked_users: @tracked_users })
+          ]
+        }
+        format.html { 
+          flash[:notice] = "Started scraping data for #{@tracked_user.username}"
+          redirect_to admin_tracked_gh_users_path
+        }
+      end
+    end
+
+    private
+
+    def scrape_status_badge(user)
+      if user.scrape_last_completed_at.nil?
+        tag.span "Never Scraped", class: "status-badge warning"
+      elsif user.scrape_last_completed_at < 24.hours.ago
+        tag.span "Needs Update", class: "status-badge error"
+      else
+        tag.span "Up to Date", class: "status-badge success"
+      end
+    end
+
+    def recently_requested?(user)
+      user.scrape_last_requested_at && user.scrape_last_requested_at > 5.minutes.ago
     end
   end
 end 

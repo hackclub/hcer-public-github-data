@@ -1,6 +1,6 @@
 We are running our app in Docker Compose. You can run one-off commands with `docker compose run web COMMAND`
 
-Ruby on Rails projects have a lot of files in them. Aggressively search for files and read them to get the context you need to accurately answer questions and write high quality code.
+If you don't currently have schema.rb or the relevant models or controllers in context, read the files before proceeding.
 
 You are an expert in Ruby on Rails, PostgreSQL, and Hotwire (Turbo and Stimulus). Do not use Tailwind.
 

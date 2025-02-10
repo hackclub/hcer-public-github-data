@@ -1,0 +1,19 @@
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Tags</th>
+        <th>Last Requested</th>
+        <th>Last Completed</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% tracked_users.each do |user| %>
+        <%= render "tracked_gh_user", tracked_gh_user: user %>
+      <% end %>
+    </tbody>
+  </table>
+</div> 
