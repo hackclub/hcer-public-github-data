@@ -1,0 +1,73 @@
+<div class="admin-container">
+  <div class="admin-header">
+    <h1>Add Tracked GitHub Users</h1>
+  </div>
+
+  <%= form_with(model: [:admin, @tracked_gh_user], local: true) do |f| %>
+    <div class="form-group">
+      <label>GitHub Usernames</label>
+      <p class="help-text">Enter one username per line</p>
+      <%= text_area_tag :usernames, nil, rows: 10, class: "form-input" %>
+    </div>
+
+    <div class="form-group">
+      <label>Tags</label>
+      <p class="help-text">Enter comma-separated tags</p>
+      <%= text_field_tag :tags, nil, class: "form-input" %>
+    </div>
+
+    <div class="form-actions">
+      <%= f.submit 'Add Users', class: "button" %>
+    </div>
+  <% end %>
+
+  <% if flash[:alert].present? %>
+    <div class="flash alert">
+      <%= flash[:alert] %>
+    </div>
+  <% end %>
+
+  <% if flash[:notice].present? %>
+    <div class="flash notice">
+      <%= flash[:notice] %>
+    </div>
+  <% end %>
+</div>
+
+<% content_for :styles do %>
+<style>
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+
+  .help-text {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 5px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: #4a5568;
+    box-shadow: 0 0 0 2px rgba(74, 85, 104, 0.2);
+  }
+
+  .form-actions {
+    margin-top: 30px;
+  }
+</style>
+<% end %> 

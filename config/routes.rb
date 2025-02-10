@@ -1,4 +1,9 @@
 Rails.application.routes.draw do
+  namespace :admin do
+    resources :tracked_gh_users, only: [:index, :new, :create]
+    root to: 'home#index'
+  end
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # OAuth routes

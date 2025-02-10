@@ -1,0 +1,49 @@
+<div class="admin-container">
+  <div class="header-with-actions">
+    <h1>Tracked GitHub Users</h1>
+    <%= link_to "Add Users", new_admin_tracked_gh_user_path, class: "button" %>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Tags</th>
+          <th>Last Requested</th>
+          <th>Last Completed</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @tracked_users.each do |user| %>
+          <tr>
+            <td><%= user.username %></td>
+            <td>
+              <% user.tags.to_a.each do |tag| %>
+                <span class="tag"><%= tag %></span>
+              <% end %>
+            </td>
+            <td><%= user.scrape_last_requested_at&.strftime("%Y-%m-%d %H:%M UTC") %></td>
+            <td><%= user.scrape_last_completed_at&.strftime("%Y-%m-%d %H:%M UTC") %></td>
+            <td>
+              <% if user.scrape_last_completed_at.nil? %>
+                <span class="status-badge warning">Never Scraped</span>
+              <% elsif user.scrape_last_completed_at < 24.hours.ago %>
+                <span class="status-badge error">Needs Update</span>
+              <% else %>
+                <span class="status-badge success">Up to Date</span>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <% if flash[:notice].present? %>
+    <div class="flash notice">
+      <%= flash[:notice] %>
+    </div>
+  <% end %>
+</div> 

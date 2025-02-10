@@ -1,0 +1,13 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  gh_id: 
+  username: MyString
+  tags: 
+  scrape_last_requested_at: 2025-02-10 14:47:23
+
+two:
+  gh_id: 
+  username: MyString
+  tags: 
+  scrape_last_requested_at: 2025-02-10 14:47:23

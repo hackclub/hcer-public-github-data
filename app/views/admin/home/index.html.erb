@@ -1,0 +1,36 @@
+<div class="admin-container">
+  <div class="admin-header">
+    <h1>Admin Dashboard</h1>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <dt>Total Tracked Users</dt>
+      <dd><%= @tracked_users_count %></dd>
+    </div>
+
+    <div class="stat-card">
+      <dt>Users With Data</dt>
+      <dd><%= @tracked_users_with_data %></dd>
+    </div>
+
+    <div class="stat-card">
+      <dt>Users Needing Scrape</dt>
+      <dd><%= @tracked_users_needing_scrape %></dd>
+    </div>
+  </div>
+
+  <div class="actions-panel">
+    <h3>Quick Actions</h3>
+    <div>
+      <%= link_to "Add New Users", new_admin_tracked_gh_user_path, class: "button" %>
+      <%= link_to "View All Tracked Users", admin_tracked_gh_users_path, class: "button" %>
+    </div>
+  </div>
+
+  <% if flash[:notice].present? %>
+    <div class="flash notice">
+      <%= flash[:notice] %>
+    </div>
+  <% end %>
+</div> 
