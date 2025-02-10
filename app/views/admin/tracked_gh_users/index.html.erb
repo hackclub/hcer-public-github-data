@@ -24,8 +24,12 @@
                 <span class="tag"><%= tag %></span>
               <% end %>
             </td>
-            <td><%= user.scrape_last_requested_at&.strftime("%Y-%m-%d %H:%M UTC") %></td>
-            <td><%= user.scrape_last_completed_at&.strftime("%Y-%m-%d %H:%M UTC") %></td>
+            <td title="<%= user.scrape_last_requested_at&.to_fs(:long) %>">
+              <%= time_ago_in_words(user.scrape_last_requested_at) + " ago" if user.scrape_last_requested_at %>
+            </td>
+            <td title="<%= user.scrape_last_completed_at&.to_fs(:long) %>">
+              <%= time_ago_in_words(user.scrape_last_completed_at) + " ago" if user.scrape_last_completed_at %>
+            </td>
             <td>
               <% if user.scrape_last_completed_at.nil? %>
                 <span class="status-badge warning">Never Scraped</span>
