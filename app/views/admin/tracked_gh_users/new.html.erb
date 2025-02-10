@@ -12,8 +12,22 @@
 
     <div class="form-group">
       <label>Tags</label>
-      <p class="help-text">Enter comma-separated tags</p>
-      <%= text_field_tag :tags, nil, class: "form-input" %>
+      <p class="help-text">Check existing tags or add new ones (comma-separated)</p>
+      <%= text_field_tag :new_tags, nil, class: "form-input", placeholder: "Add new tags..." %>
+      
+      <% if @known_tags.any? %>
+        <div class="known-tags">
+          <p class="help-text">Known tags:</p>
+          <div class="tag-list">
+            <% @known_tags.each do |tag| %>
+              <label class="tag-checkbox">
+                <%= check_box_tag "tags[]", tag, false, id: "tag-#{tag}" %>
+                <span class="tag"><%= tag %></span>
+              </label>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
     </div>
 
     <div class="form-actions">
@@ -37,37 +51,93 @@
 <% content_for :styles do %>
 <style>
   .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 1.5rem;
   }
 
   .form-group label {
     display: block;
-    font-weight: bold;
-    margin-bottom: 5px;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #24292f;
   }
 
   .help-text {
-    color: #666;
+    color: #57606a;
     font-size: 14px;
-    margin-bottom: 5px;
+    margin-bottom: 0.5rem;
   }
 
   .form-input {
     width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
+    padding: 0.5rem;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    font-size: 16px;
+    font-family: inherit;
+    margin-bottom: 1rem;
   }
 
   .form-input:focus {
     outline: none;
-    border-color: #4a5568;
-    box-shadow: 0 0 0 2px rgba(74, 85, 104, 0.2);
+    border-color: #0969da;
+    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.3);
+  }
+
+  .known-tags {
+    margin-top: 1rem;
+  }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .tag-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+  }
+
+  .tag-checkbox input[type="checkbox"] {
+    margin: 0;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 14px;
+    background-color: #ddf4ff;
+    color: #0969da;
+  }
+
+  .tag-checkbox:hover .tag {
+    background-color: #0969da;
+    color: white;
   }
 
   .form-actions {
-    margin-top: 30px;
+    margin-top: 2rem;
+  }
+
+  .button {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background-color: #40b24b;
+    color: white;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+  }
+
+  .button:hover {
+    background-color: #359540;
   }
 </style>
 <% end %> 

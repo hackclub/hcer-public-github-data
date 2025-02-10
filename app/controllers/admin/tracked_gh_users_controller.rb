@@ -7,11 +7,14 @@ module Admin
 
     def new
       @tracked_gh_user = TrackedGhUser.new
+      @known_tags = TrackedGhUser.pluck(:tags).compact.flatten.uniq.sort
     end
 
     def create
       usernames = params[:usernames].to_s.split("\n").map(&:strip).reject(&:blank?)
-      tags = params[:tags].to_s.split(",").map(&:strip).reject(&:blank?)
+      checked_tags = Array(params[:tags])
+      new_tags = params[:new_tags].to_s.split(",").map(&:strip).reject(&:blank?)
+      all_tags = (checked_tags + new_tags).uniq
       
       results = { success: [], error: [], updated: [] }
       
@@ -23,7 +26,7 @@ module Admin
           if tracked_user
             # Update existing user's tags
             existing_tags = tracked_user.tags || []
-            new_tags = (existing_tags + tags).uniq
+            new_tags = (existing_tags + all_tags).uniq
             tracked_user.update!(tags: new_tags)
             results[:updated] << username
           else
@@ -34,8 +37,7 @@ module Admin
             tracked_user = TrackedGhUser.create!(
               username: username,
               gh_id: user_data['id'],
-              tags: tags,
-              scrape_last_requested_at: Time.current
+              tags: all_tags
             )
             
             results[:success] << username
