@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_02_10_144723) do
+ActiveRecord::Schema[8.0].define(version: 2025_02_10_172754) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -35,20 +35,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_10_144723) do
     t.index ["username"], name: "index_access_tokens_on_username", unique: true
   end
 
-  create_table "commits", primary_key: "sha", id: :string, force: :cascade do |t|
+  create_table "gh_commits", primary_key: "sha", id: :string, force: :cascade do |t|
     t.bigint "gh_user_id", null: false
     t.datetime "committed_at", null: false
     t.text "message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["gh_user_id"], name: "index_commits_on_gh_user_id"
+    t.index ["gh_user_id"], name: "index_gh_commits_on_gh_user_id"
   end
 
-  create_table "commits_gh_repos", id: false, force: :cascade do |t|
-    t.string "commit_id", null: false
+  create_table "gh_commits_gh_repos", id: false, force: :cascade do |t|
+    t.string "gh_commit_id", null: false
     t.bigint "gh_repo_id", null: false
-    t.index ["commit_id", "gh_repo_id"], name: "index_commits_gh_repos_on_commit_id_and_gh_repo_id", unique: true
-    t.index ["gh_repo_id", "commit_id"], name: "index_commits_gh_repos_on_gh_repo_id_and_commit_id"
+    t.index ["gh_commit_id", "gh_repo_id"], name: "index_gh_commits_gh_repos_on_gh_commit_id_and_gh_repo_id", unique: true
+    t.index ["gh_repo_id", "gh_commit_id"], name: "index_gh_commits_gh_repos_on_gh_repo_id_and_gh_commit_id"
   end
 
   create_table "gh_orgs", force: :cascade do |t|
@@ -126,9 +126,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_10_144723) do
     t.datetime "updated_at", null: false
   end
 
-  add_foreign_key "commits", "gh_users"
-  add_foreign_key "commits_gh_repos", "commits", primary_key: "sha"
-  add_foreign_key "commits_gh_repos", "gh_repos"
+  add_foreign_key "gh_commits", "gh_users"
+  add_foreign_key "gh_commits_gh_repos", "gh_commits", primary_key: "sha"
+  add_foreign_key "gh_commits_gh_repos", "gh_repos"
   add_foreign_key "gh_repos", "gh_orgs"
   add_foreign_key "gh_repos", "gh_users"
 end

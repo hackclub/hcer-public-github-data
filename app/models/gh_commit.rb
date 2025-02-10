@@ -1,4 +1,4 @@
-class Commit < ApplicationRecord
+class GhCommit < ApplicationRecord
   belongs_to :gh_user
   has_and_belongs_to_many :gh_repos
 

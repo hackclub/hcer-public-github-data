@@ -220,7 +220,7 @@ module GhScraper
       end.compact
 
       # Bulk upsert commits
-      Commit.upsert_all(
+      GhCommit.upsert_all(
         commit_records,
         unique_by: :sha,
         returning: false
@@ -229,7 +229,7 @@ module GhScraper
       # Prepare commit-repo associations
       commit_repo_records = commit_records.map do |commit|
         {
-          commit_id: commit[:sha],
+          gh_commit_id: commit[:sha],
           gh_repo_id: repo.id
         }
       end
@@ -237,9 +237,9 @@ module GhScraper
       # Bulk upsert commit-repo associations if we have any records
       if commit_repo_records.any?
         ActiveRecord::Base.connection.execute(<<~SQL)
-          INSERT INTO commits_gh_repos (commit_id, gh_repo_id)
-          VALUES #{commit_repo_records.map { |r| "(#{ActiveRecord::Base.connection.quote(r[:commit_id])}, #{r[:gh_repo_id]})" }.join(", ")}
-          ON CONFLICT (commit_id, gh_repo_id) DO NOTHING
+          INSERT INTO gh_commits_gh_repos (gh_commit_id, gh_repo_id)
+          VALUES #{commit_repo_records.map { |r| "(#{ActiveRecord::Base.connection.quote(r[:gh_commit_id])}, #{r[:gh_repo_id]})" }.join(", ")}
+          ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
         SQL
       end
 
