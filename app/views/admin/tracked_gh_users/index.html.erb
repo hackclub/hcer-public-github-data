@@ -1,7 +1,10 @@
 <div class="admin-container">
   <div class="header-with-actions">
     <h1>Tracked GitHub Users</h1>
-    <%= link_to "Add Users", new_admin_tracked_gh_user_path, class: "button" %>
+    <div class="button-group">
+      <%= button_to "Scrape All Users", scrape_all_admin_tracked_gh_users_path, class: "button", form: { data: { turbo: true } } %>
+      <%= link_to "Add Users", new_admin_tracked_gh_user_path, class: "button" %>
+    </div>
   </div>
 
   <%= turbo_frame_tag "tracked_users_table" do %>
