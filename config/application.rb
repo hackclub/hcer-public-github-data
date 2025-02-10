@@ -26,7 +26,5 @@ module App
 
     config.autoload_paths << Rails.root.join('app/services')
     config.eager_load_paths << Rails.root.join('app/services')
-
-    config.github_proxy_url = "https://hcer-public-github-data.a.selfhosted.hackclub.com/"
   end
 end
