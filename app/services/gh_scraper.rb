@@ -3,6 +3,7 @@ module GhScraper
   class RateLimitError < GhApi::RateLimitError; end
   class NotFoundError < GhApi::NotFoundError; end
   class EmptyRepoError < Error; end
+  class DMCATakedownError < GhApi::DMCATakedownError; end
 
   class Base
     private
@@ -80,7 +81,12 @@ module GhScraper
       Rails.logger.info "Scraping repository: #{owner}/#{name}"
       
       # Fetch repo data
-      repo_data = get("repos/#{owner}/#{name}")
+      begin
+        repo_data = get("repos/#{owner}/#{name}")
+      rescue GhApi::DMCATakedownError
+        Rails.logger.warn "Repository #{owner}/#{name} is unavailable due to DMCA takedown. Skipping."
+        return nil
+      end
       
       # Create or update repo record
       repo = GhRepo.find_or_initialize_by(gh_id: repo_data[:id])

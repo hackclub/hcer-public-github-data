@@ -4,6 +4,7 @@ module GhApi
   class NotFoundError < Error; end
   class EmptyRepoError < Error; end
   class NoAvailableTokensError < Error; end
+  class DMCATakedownError < Error; end
 
   class Client
     CACHE_VERSION = 'v1'
@@ -71,6 +72,8 @@ module GhApi
           elsif e.response_status == 409 && path.include?('/commits')
             # Return empty array for empty repositories
             []
+          elsif e.response_status == 451
+            raise DMCATakedownError, "Repository unavailable due to DMCA takedown: #{path}"
           else
             raise Error, "GitHub API error (#{e.response_status}): #{e.message}"
           end
