@@ -3,10 +3,12 @@ module GhApi
   class RateLimitError < Error; end
   class NotFoundError < Error; end
   class EmptyRepoError < Error; end
+  class NoAvailableTokensError < Error; end
 
   class Client
     CACHE_VERSION = 'v1'
     CACHE_EXPIRATION = 1.day
+    MAX_RETRIES = 3
 
     def self.request(path, params = {})
       query = params.empty? ? '' : "?#{params.to_query}"
@@ -39,9 +41,9 @@ module GhApi
 
     private
 
-    def self.make_request(path, params, api_type)
+    def self.make_request(path, params, api_type, retry_count = 0)
       token = AccessToken.find_available_token(api_type)
-      raise RateLimitError, 'No available tokens' unless token
+      raise NoAvailableTokensError, 'No available tokens' unless token
 
       token.with_lock do
         begin
@@ -50,6 +52,16 @@ module GhApi
           response.is_a?(Array) ? response.map { |item| item.to_hash.deep_symbolize_keys } : response.to_hash.deep_symbolize_keys
         rescue Octokit::NotFound
           raise NotFoundError, "GitHub resource not found: #{path}"
+        rescue Octokit::Unauthorized
+          Rails.logger.warn "Token #{token.username} is unauthorized. Revoking..."
+          token.revoke!
+          
+          if retry_count < MAX_RETRIES
+            Rails.logger.info "Retrying request with a new token (attempt #{retry_count + 1}/#{MAX_RETRIES})"
+            make_request(path, params, api_type, retry_count + 1)
+          else
+            raise Error, "Failed to find a working token after #{MAX_RETRIES} attempts"
+          end
         rescue Octokit::Error => e
           token.assign_rate_limits_from_api
           token.save!

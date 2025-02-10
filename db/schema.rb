@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_02_10_172754) do
+ActiveRecord::Schema[8.0].define(version: 2025_02_10_172755) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -27,10 +27,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_10_172754) do
     t.datetime "graphql_rate_limit_reset_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "revoked_at"
     t.index ["core_rate_limit_remaining", "core_rate_limit_reset_at"], name: "idx_on_core_rate_limit_remaining_core_rate_limit_re_41fd473f19"
     t.index ["gh_id"], name: "index_access_tokens_on_gh_id", unique: true
     t.index ["graphql_rate_limit_remaining", "graphql_rate_limit_reset_at"], name: "idx_on_graphql_rate_limit_remaining_graphql_rate_li_37af0ccffd"
     t.index ["last_used_at"], name: "index_access_tokens_on_last_used_at"
+    t.index ["revoked_at"], name: "index_access_tokens_on_revoked_at"
     t.index ["search_rate_limit_remaining", "search_rate_limit_reset_at"], name: "idx_on_search_rate_limit_remaining_search_rate_limi_7579e5db20"
     t.index ["username"], name: "index_access_tokens_on_username", unique: true
   end
