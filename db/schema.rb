@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_02_09_234422) do
+ActiveRecord::Schema[8.0].define(version: 2025_02_10_002548) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -85,6 +85,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_09_234422) do
     t.string "username", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "scrape_last_completed_at"
     t.index ["gh_id"], name: "index_gh_users_on_gh_id", unique: true
     t.index ["username"], name: "index_gh_users_on_username", unique: true
   end

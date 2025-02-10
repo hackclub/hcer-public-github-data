@@ -99,6 +99,9 @@ module GhScraper
         Org.scrape_repos(org_data['login'])
       end
 
+      # Update the last completed timestamp
+      user.update!(scrape_last_completed_at: Time.current)
+
       user
     end
   end
