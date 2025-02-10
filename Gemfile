@@ -26,6 +26,9 @@ gem "omniauth-rails_csrf_protection"
 gem "octokit", "~> 7.0"
 gem "faraday-retry"
 
+# Mission Control Jobs
+gem "mission_control-jobs"
+
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 # gem "bcrypt", "~> 3.1.7"
 
