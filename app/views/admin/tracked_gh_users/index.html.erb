@@ -2,13 +2,43 @@
   <div class="header-with-actions">
     <h1>Tracked GitHub Users</h1>
     <div class="button-group">
-      <%= button_to "Scrape All Users", scrape_all_admin_tracked_gh_users_path, class: "button", form: { data: { turbo: true } } %>
       <%= link_to "Add Users", new_admin_tracked_gh_user_path, class: "button" %>
     </div>
   </div>
 
   <%= turbo_frame_tag "tracked_users_table" do %>
-    <%= render "table", tracked_users: @tracked_users %>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Tags</th>
+            <th>Last Requested</th>
+            <th>Last Completed</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @tracked_users.each do |tracked_gh_user| %>
+            <tr id="<%= dom_id(tracked_gh_user) %>">
+              <td><%= tracked_gh_user.username %></td>
+              <td>
+                <% tracked_gh_user.tags.to_a.each do |tag| %>
+                  <span class="tag"><%= tag %></span>
+                <% end %>
+              </td>
+              <td title="<%= tracked_gh_user.scrape_last_requested_at&.to_fs(:long) %>">
+                <%= time_ago_in_words(tracked_gh_user.scrape_last_requested_at) + " ago" if tracked_gh_user.scrape_last_requested_at %>
+              </td>
+              <td title="<%= tracked_gh_user.scrape_last_completed_at&.to_fs(:long) %>">
+                <%= time_ago_in_words(tracked_gh_user.scrape_last_completed_at) + " ago" if tracked_gh_user.scrape_last_completed_at %>
+              </td>
+              <td><%= scrape_status_badge(tracked_gh_user) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
   <% end %>
 
   <%= turbo_frame_tag "flash" do %>

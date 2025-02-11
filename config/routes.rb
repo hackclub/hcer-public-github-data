@@ -1,9 +1,6 @@
 Rails.application.routes.draw do
   namespace :admin do
-    resources :tracked_gh_users, only: [:index, :new, :create] do
-      post :scrape, on: :member
-      post :scrape_all, on: :collection
-    end
+    resources :tracked_gh_users, only: [:index, :new, :create]
     root to: 'home#index'
   end
 
