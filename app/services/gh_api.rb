@@ -102,7 +102,10 @@ module GhApi
     end
 
     def self.update_token_rate_limits(token, api_type)
-      token.assign_rate_limits_from_api
+      rl = token.client.rate_limit
+
+      token.send("#{api_type}_rate_limit_remaining=", rl.remaining)
+      token.send("#{api_type}_rate_limit_reset_at=", rl.resets_at)
       token.save!
     end
   end
