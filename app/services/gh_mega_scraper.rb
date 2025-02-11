@@ -99,6 +99,7 @@ module GhMegaScraper
             o = GhApi::Client.request_paginated("users/#{tracked_gh_user.username}/orgs") rescue []
 
             o.map do |o|
+              Rails.logger.info "Processing org #{o[:login]} for user #{tracked_gh_user.username}"
               associations << {
                 gh_user_id: tracked_gh_user.gh_user.id,
                 gh_org_gh_id: o[:id]
