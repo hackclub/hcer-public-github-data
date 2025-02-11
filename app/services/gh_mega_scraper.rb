@@ -99,6 +99,9 @@ module GhMegaScraper
           end
         end.compact
 
+        # dedup
+        data = data.uniq { |org| org[:gh_id] }
+
         GhOrg.upsert_all(data, unique_by: :gh_id)
 
         # create a hash of gh_id => id for the gh_orgs
