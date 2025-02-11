@@ -6,7 +6,7 @@
 # for each repo with a most recent push that's more recent than the rescrape interval, scrape the repo's commits
 # if there is a repo with a user profile readme, scrape the readme and save it to the corresponding user record
 module GhMegaScraper
-  THREADS = 16
+  THREADS = 32
   BATCH_SIZE = 100
 
   class Scrape
@@ -205,6 +205,7 @@ module GhMegaScraper
 
             commits.map do |commit|
               next unless commit[:author]
+              next unless commit[:author][:id]
 
               {
                 sha: commit[:sha],
@@ -246,6 +247,9 @@ module GhMegaScraper
           commit_data[:gh_user_id] = gh_user_id_map[commit[:tmp_author][:gh_id]]
           commit_data
         end
+
+        # Dedup commits by sha
+        commit_records = commit_records.uniq { |commit| commit[:sha] }
 
         GhCommit.upsert_all(commit_records, unique_by: :sha) if commit_records.any?
 
