@@ -68,6 +68,9 @@ module GhMegaScraper
           end
         end.compact
 
+        # dedup by gh_id
+        data = data.uniq { |user| user[:gh_id] }
+
         GhUser.upsert_all(data, unique_by: :gh_id)
       end
     end
