@@ -25,6 +25,7 @@ gem "omniauth-rails_csrf_protection"
 # GitHub API client
 gem "octokit", "~> 7.0"
 gem "faraday-retry"
+gem "parallel"
 
 # Mission Control Jobs
 gem "mission_control-jobs"

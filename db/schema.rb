@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_02_11_141045) do
+ActiveRecord::Schema[8.0].define(version: 2025_02_11_144207) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -58,6 +58,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_11_141045) do
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "scrape_last_completed_at"
     t.index ["gh_id"], name: "index_gh_orgs_on_gh_id", unique: true
     t.index ["name"], name: "index_gh_orgs_on_name", unique: true
   end
@@ -96,6 +97,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_11_141045) do
     t.boolean "has_issues", default: true
     t.boolean "has_wiki", default: true
     t.boolean "has_discussions", default: false
+    t.datetime "scrape_last_completed_at"
     t.index ["archived"], name: "index_gh_repos_on_archived"
     t.index ["fork"], name: "index_gh_repos_on_fork"
     t.index ["forks_count"], name: "index_gh_repos_on_forks_count"
