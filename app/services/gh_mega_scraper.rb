@@ -23,11 +23,8 @@ module GhMegaScraper
       # Step 2: Upsert all orgs for these users
       upsert_orgs(tracked_gh_users_to_process)
       
-      # # Step 3: Associate users with their orgs
-      # associate_users_with_orgs(users, orgs)
-      
       # # Step 4: Upsert all repos for users and orgs
-      # repos = upsert_repos(users + orgs)
+      repos = upsert_repos(tracked_gh_users_to_process)
       
       # # Step 5: Process commits for repos that need updating
       # process_commits(repos, rescrape_interval)
@@ -120,5 +117,73 @@ module GhMegaScraper
         SQL
       end
     end
+
+    def self.upsert_repos(tracked_gh_users_to_process)
+      def self.repo_attrs(repo_resp)
+        {
+          gh_id: repo_resp[:id],
+          name: repo_resp[:name],
+          description: repo_resp[:description],
+          homepage: repo_resp[:homepage],
+          language: repo_resp[:language],
+          repo_created_at: repo_resp[:created_at],
+          repo_updated_at: repo_resp[:updated_at],
+          pushed_at: repo_resp[:pushed_at],
+          stargazers_count: repo_resp[:stargazers_count],
+          forks_count: repo_resp[:forks_count],
+          watchers_count: repo_resp[:watchers_count],
+          open_issues_count: repo_resp[:open_issues_count],
+          size: repo_resp[:size],
+          private: repo_resp[:private],
+          archived: repo_resp[:archived],
+          disabled: repo_resp[:disabled],
+          fork: repo_resp[:fork],
+          topics: repo_resp[:topics],
+          default_branch: repo_resp[:default_branch],
+          has_issues: repo_resp[:has_issues],
+          has_wiki: repo_resp[:has_wiki],
+          has_discussions: repo_resp[:has_discussions]
+        }
+      end
+
+      tracked_gh_users_to_process.includes(:gh_user).find_in_batches(batch_size: BATCH_SIZE) do |batch|
+        data = Parallel.flat_map(batch, in_threads: THREADS) do |tracked_gh_user|
+          begin
+            repos = GhApi::Client.request_paginated("users/#{tracked_gh_user.username}/repos") rescue []
+
+            repos.map do |repo|
+              attrs = self.repo_attrs(repo)
+              attrs[:gh_user_id] = tracked_gh_user.gh_user.id
+              attrs
+            end.reject { |repo| repo[:fork] } # Skip forks
+          rescue GhApi::Error => e
+            Rails.logger.error "Error fetching repos for user #{tracked_gh_user.username}: #{e.message}"
+            nil
+          end
+        end.compact
+
+        GhRepo.upsert_all(data, unique_by: :gh_id)
+      end
+
+      GhOrg.joins(:gh_users).where(gh_users: tracked_gh_users_to_process).find_in_batches(batch_size: BATCH_SIZE) do |batch|
+        data = Parallel.flat_map(batch, in_threads: THREADS) do |gh_org|
+          begin
+            repos = GhApi::Client.request_paginated("users/#{gh_org.name}/repos") rescue []
+
+            repos.map do |repo|
+              attrs = self.repo_attrs(repo)
+              attrs[:gh_org_id] = gh_org.id
+              attrs
+            end.reject { |repo| repo[:fork] } # Skip forks
+          rescue GhApi::Error => e
+            Rails.logger.error "Error fetching repos for org #{gh_org.name}: #{e.message}"
+            nil
+          end
+        end.compact
+
+        GhRepo.upsert_all(data, unique_by: :gh_id)
+      end
+    end
   end
 end
+
