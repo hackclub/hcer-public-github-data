@@ -6,7 +6,7 @@
 # for each repo with a most recent push that's more recent than the rescrape interval, scrape the repo's commits
 # if there is a repo with a user profile readme, scrape the readme and save it to the corresponding user record
 module GhMegaScraper
-  THREADS = 4
+  THREADS = 1
   BATCH_SIZE = 100
 
   class Scrape
