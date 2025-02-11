@@ -213,7 +213,7 @@ module GhScraper
       # Bulk upsert commit-repo associations if we have any records
       if commit_repo_records.any?
         ActiveRecord::Base.connection.execute(<<~SQL)
-          INSERT INTO gh_commits_gh_repos (gh_commit_id, gh_repo_id)
+          INSERT INTO gh_commits_repos (gh_commit_id, gh_repo_id)
           VALUES #{commit_repo_records.map { |r| "(#{ActiveRecord::Base.connection.quote(r[:gh_commit_id])}, #{r[:gh_repo_id]})" }.join(", ")}
           ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
         SQL

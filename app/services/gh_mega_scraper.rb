@@ -24,10 +24,10 @@ module GhMegaScraper
       upsert_orgs(tracked_gh_users_to_process)
       
       # # Step 4: Upsert all repos for users and orgs
-      repos = upsert_repos(tracked_gh_users_to_process)
+      upsert_repos(tracked_gh_users_to_process)
       
       # # Step 5: Process commits for repos that need updating
-      # process_commits(repos, rescrape_interval)
+      upsert_commits(tracked_gh_users_to_process, rescrape_interval)
       
       # # Step 6: Process profile readmes
       # process_profile_readmes(users)
@@ -182,6 +182,89 @@ module GhMegaScraper
         end.compact
 
         GhRepo.upsert_all(data, unique_by: :gh_id)
+      end
+    end
+
+    def self.upsert_commits(tracked_gh_users_to_process, rescrape_interval)
+      repos = GhRepo
+        .left_joins(:gh_user)
+        .left_joins(:gh_org)
+        .where(gh_user: tracked_gh_users_to_process) # repos owned by tracked users
+        .or(
+          GhRepo.where(
+            gh_org: GhOrg
+              .joins(:gh_users)
+              .where(gh_users: tracked_gh_users_to_process)
+          ) # repos owned by orgs that tracked users belong to
+        )
+
+      repos.find_in_batches(batch_size: BATCH_SIZE) do |batch|
+        data = Parallel.flat_map(batch, in_threads: THREADS) do |repo|
+          begin
+            commits = GhApi::Client.request_paginated("repos/#{repo.owner_gh_username}/#{repo.name}/commits") rescue []
+
+            commits.map do |commit|
+              next unless commit[:author]
+
+              {
+                sha: commit[:sha],
+                committed_at: commit[:commit][:author][:date],
+                message: commit[:commit][:message],
+
+                tmp_author: {
+                  login: commit[:author][:login],
+                  gh_id: commit[:author][:id],
+                  avatar_url: commit[:author][:avatar_url],
+                },
+
+                tmp_gh_repo_id: repo.id
+              }
+            end.compact
+          end
+        end
+
+        # Extract unique authors from commits and upsert them as GhUsers
+        authors = data.map { |commit| commit[:tmp_author] }.uniq { |author| author[:gh_id] }
+        
+        author_records = authors.map do |author|
+          {
+            gh_id: author[:gh_id],
+            username: author[:login],
+            avatar_url: author[:avatar_url]
+          }
+        end
+
+        GhUser.upsert_all(author_records, unique_by: :gh_id) if author_records.any?
+
+        # Get mapping of gh_id to GhUser id
+        author_gh_ids = data.map { |commit| commit[:tmp_author][:gh_id] }.uniq
+        gh_user_id_map = GhUser.where(gh_id: author_gh_ids).pluck(:gh_id, :id).to_h
+
+        # Remove tmp fields and add gh_user_id to commits
+        commit_records = data.map do |commit|
+          commit_data = commit.reject { |k, _| k.to_s.start_with?('tmp_') }
+          commit_data[:gh_user_id] = gh_user_id_map[commit[:tmp_author][:gh_id]]
+          commit_data
+        end
+
+        GhCommit.upsert_all(commit_records, unique_by: :sha) if commit_records.any?
+
+        # Create association records between commits and repos
+        commit_repo_records = data.map do |commit|
+          {
+            gh_commit_id: commit[:sha],
+            gh_repo_id: commit[:tmp_gh_repo_id]
+          }
+        end
+
+        # Bulk upsert the associations using the composite unique index
+        ActiveRecord::Base.connection.execute(
+          <<~SQL
+            INSERT INTO gh_commits_repos (gh_commit_id, gh_repo_id)
+            VALUES #{commit_repo_records.map { |r| "(#{ActiveRecord::Base.connection.quote(r[:gh_commit_id])}, #{r[:gh_repo_id]})" }.join(", ")}
+            ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
+          SQL
+        ) if commit_repo_records.any?
       end
     end
   end

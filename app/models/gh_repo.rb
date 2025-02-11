@@ -1,7 +1,7 @@
 class GhRepo < ApplicationRecord
   belongs_to :gh_user, optional: true
   belongs_to :gh_org, optional: true
-  has_and_belongs_to_many :commits
+  has_and_belongs_to_many :gh_commits
 
   validates :gh_id, presence: true, uniqueness: true
   validates :name, presence: true
@@ -14,6 +14,10 @@ class GhRepo < ApplicationRecord
   scope :popular, -> { order(stargazers_count: :desc) }
   scope :recently_pushed, -> { order(pushed_at: :desc) }
   scope :non_forks, -> { where(fork: false) }
+
+  def owner_gh_username
+    gh_user.present? ? gh_user.username : gh_org.name
+  end
 
   private
 
