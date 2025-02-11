@@ -11,6 +11,8 @@ module GhMegaScraper
 
   class Scrape
     def self.begin(usernames = [], rescrape_interval = 1.day)
+      Rails.logger.info "Starting GhMegaScraper with usernames: \\#{usernames.join(', ')} and rescrape_interval: \\#{rescrape_interval}"
+      
       tracked_gh_users_to_process = if usernames.present?
         TrackedGhUser.where(username: usernames)
       else
@@ -31,12 +33,18 @@ module GhMegaScraper
       
       # # Step 6: Process profile readmes
       # process_profile_readmes(users)
+      
+      Rails.logger.info "Finished GhMegaScraper"
     end
 
     private
     
     def self.upsert_users(tracked_gh_users_to_process)
+      Rails.logger.info "Starting upsert_users with \\#{tracked_gh_users_to_process.size} users"
+      
       tracked_gh_users_to_process.find_in_batches(batch_size: BATCH_SIZE) do |batch|
+        Rails.logger.info "Processing batch of \\#{batch.size} users"
+        
         data = Parallel.map(batch, in_threads: THREADS) do |tracked_gh_user|
           begin
             user_data =GhApi::Client.request("/users/#{tracked_gh_user.username}")
@@ -72,11 +80,19 @@ module GhMegaScraper
         data = data.uniq { |user| user[:gh_id] }
 
         GhUser.upsert_all(data, unique_by: :gh_id)
+        
+        Rails.logger.info "Finished processing batch of users"
       end
+      
+      Rails.logger.info "Finished upsert_users"
     end
 
     def self.upsert_orgs(tracked_gh_users_to_process)
+      Rails.logger.info "Starting upsert_orgs"
+      
       tracked_gh_users_to_process.includes(:gh_user).find_in_batches(batch_size: BATCH_SIZE) do |batch|
+        Rails.logger.info "Processing batch of \\#{batch.size} users for orgs"
+        
         associations = []
         data = Parallel.flat_map(batch, in_threads: THREADS) do |tracked_gh_user|
           begin
@@ -121,10 +137,16 @@ module GhMegaScraper
           VALUES #{associations_to_insert.map { |r| "(#{r[:gh_user_id]}, #{r[:gh_org_id]})" }.join(", ")}
           ON CONFLICT (gh_user_id, gh_org_id) DO NOTHING
         SQL
+        
+        Rails.logger.info "Finished processing batch of orgs"
       end
+      
+      Rails.logger.info "Finished upsert_orgs"
     end
 
     def self.upsert_repos(tracked_gh_users_to_process)
+      Rails.logger.info "Starting upsert_repos"
+      
       def self.repo_attrs(repo_resp)
         {
           gh_id: repo_resp[:id],
@@ -153,6 +175,8 @@ module GhMegaScraper
       end
 
       tracked_gh_users_to_process.includes(:gh_user).find_in_batches(batch_size: BATCH_SIZE) do |batch|
+        Rails.logger.info "Processing batch of \\#{batch.size} users for repos"
+        
         data = Parallel.flat_map(batch, in_threads: THREADS) do |tracked_gh_user|
           begin
             repos = GhApi::Client.request_paginated("users/#{tracked_gh_user.username}/repos") rescue []
@@ -169,6 +193,8 @@ module GhMegaScraper
         end.compact
 
         GhRepo.upsert_all(data, unique_by: :gh_id)
+        
+        Rails.logger.info "Finished processing batch of repos"
       end
 
       GhOrg.joins(:gh_users).where(gh_users: tracked_gh_users_to_process).find_in_batches(batch_size: BATCH_SIZE) do |batch|
@@ -189,9 +215,13 @@ module GhMegaScraper
 
         GhRepo.upsert_all(data, unique_by: :gh_id)
       end
+      
+      Rails.logger.info "Finished upsert_repos"
     end
 
     def self.upsert_commits(tracked_gh_users_to_process, rescrape_interval)
+      Rails.logger.info "Starting upsert_commits"
+      
       repos = GhRepo
         .left_joins(:gh_user)
         .left_joins(:gh_org)
@@ -205,6 +235,8 @@ module GhMegaScraper
         )
 
       repos.find_in_batches(batch_size: BATCH_SIZE) do |batch|
+        Rails.logger.info "Processing batch of \\#{batch.size} repos for commits"
+        
         data = Parallel.flat_map(batch, in_threads: THREADS) do |repo|
           begin
             commits = GhApi::Client.request_paginated("repos/#{repo.owner_gh_username}/#{repo.name}/commits") rescue []
@@ -275,7 +307,11 @@ module GhMegaScraper
             ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
           SQL
         ) if commit_repo_records.any?
+        
+        Rails.logger.info "Finished processing batch of commits"
       end
+      
+      Rails.logger.info "Finished upsert_commits"
     end
   end
 end
