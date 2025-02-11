@@ -18,7 +18,23 @@ module GhScraper
 
     def self.ensure_user(user_data)
       user = GhUser.find_or_initialize_by(gh_id: user_data[:id])
-      user.update!(username: user_data[:login])
+      user.update!(
+        username: user_data[:login],
+        name: user_data[:name],
+        email: user_data[:email],
+        bio: user_data[:bio],
+        location: user_data[:location],
+        company: user_data[:company],
+        blog: user_data[:blog],
+        twitter_username: user_data[:twitter_username],
+        avatar_url: user_data[:avatar_url],
+        public_repos_count: user_data[:public_repos],
+        public_gists_count: user_data[:public_gists],
+        followers_count: user_data[:followers],
+        following_count: user_data[:following],
+        gh_created_at: user_data[:created_at],
+        gh_updated_at: user_data[:updated_at]
+      )
       user
     end
   end
