@@ -25,6 +25,6 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   root "home#index"
 
-  # Mount Mission Control Jobs
-  mount MissionControl::Jobs::Engine, at: "/jobs"
+  # Mount Good Job dashboard
+  mount GoodJob::Engine => 'good_job'
 end

@@ -26,5 +26,8 @@ module App
 
     config.autoload_paths << Rails.root.join('app/services')
     config.eager_load_paths << Rails.root.join('app/services')
+
+    # Use GoodJob for Active Job
+    config.active_job.queue_adapter = :good_job
   end
 end
