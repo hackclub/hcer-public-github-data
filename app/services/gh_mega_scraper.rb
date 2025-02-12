@@ -10,7 +10,7 @@ module GhMegaScraper
   BATCH_SIZE = 100
 
   class Scrape
-    def self.begin(usernames = [], rescrape_interval = 1.day)
+    def self.begin(usernames = [], rescrape_interval = 7.days)
       Rails.logger.info "Starting GhMegaScraper with usernames: \\#{usernames.join(', ')} and rescrape_interval: \\#{rescrape_interval}"
       
       tracked_gh_users_to_process = if usernames.present?
