@@ -3,4 +3,4 @@ production:
     class: GhMegaScraperJob
     queue: background
     args: []
-    schedule: every 1.day
+    schedule: "0 0 * * *"
