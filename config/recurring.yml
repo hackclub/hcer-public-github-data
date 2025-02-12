@@ -1,6 +1,0 @@
-production:
-  gh_mega_scraper:
-    class: GhMegaScraperJob
-    queue: background
-    args: []
-    schedule: "0 0 * * *"

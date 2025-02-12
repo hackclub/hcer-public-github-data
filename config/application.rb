@@ -29,5 +29,14 @@ module App
 
     # Use GoodJob for Active Job
     config.active_job.queue_adapter = :good_job
+    config.good_job.enable_cron = true
+    config.good_job.cron_graceful_restart_period = 1.minute
+    config.good_job.cron = {
+      gh_mega_scraper: {
+        cron: "0 0 * * *",
+        class: "GhMegaScraperJob",
+        description: "Daily scrape of GitHub to update the database"
+      }
+    }
   end
 end
