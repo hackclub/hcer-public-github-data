@@ -46,6 +46,8 @@ module GhApi
       token = AccessToken.find_available_token(api_type)
       raise NoAvailableTokensError, 'No available tokens' unless token
 
+      Rails.logger.info "GhApi::Client.make_request: Making request to #{path} with params #{params}. Token: #{token.username}, Rate limit: #{token.send("#{api_type}_rate_limit_remaining")}"
+
       token.with_lock do
         begin
           response = token.client.get(path, params)
