@@ -1,5 +1,5 @@
 class GhMegaScraperJob < ApplicationJob
-  queue_as :default
+  queue_with_priority 5
 
   THREADS = ENV.fetch('MEGA_SCRAPER_THREAD_COUNT', 1).to_i
   BATCH_SIZE = 100
