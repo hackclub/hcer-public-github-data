@@ -10,7 +10,7 @@ module GhMegaScraper
   BATCH_SIZE = 100
 
   class Scrape
-    def self.begin(usernames = [], rescrape_interval = 7.days)
+    def self.begin(usernames = [], rescrape_interval = 12.hours)
       Rails.logger.info "Starting GhMegaScraper with usernames: \\#{usernames.join(', ')} and rescrape_interval: \\#{rescrape_interval}"
       
       tracked_gh_users_to_process = if usernames.present?
@@ -233,6 +233,7 @@ module GhMegaScraper
             .merge(GhUser.where(gh_id: tracked_gh_users_to_process.select(:gh_id)))
             .select(:id))
         )
+        .where(commits_scrape_last_completed_at: [nil, ..rescrape_interval.ago])
 
       repos.find_in_batches(batch_size: BATCH_SIZE) do |batch|
         Rails.logger.info "Processing batch of \\#{batch.size} repos for commits"
@@ -307,6 +308,10 @@ module GhMegaScraper
             ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
           SQL
         ) if commit_repo_records.any?
+
+        # Update commits_scrape_last_completed_at for all repos in this batch
+        repo_ids = batch.map(&:id)
+        GhRepo.where(id: repo_ids).update_all(commits_scrape_last_completed_at: Time.current)
         
         Rails.logger.info "Finished processing batch of commits"
       end
