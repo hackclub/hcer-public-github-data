@@ -71,4 +71,4 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 EXPOSE 80
 
 # This is the only line that's different from the production Dockerfile
-CMD ["./bin/rails", "solid_queue:start"]
+CMD ["bundle", "exec", "good_job", "start"]
