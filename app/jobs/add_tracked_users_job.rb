@@ -1,5 +1,5 @@
 class AddTrackedUsersJob < ApplicationJob
-  queue_as :high_priority
+  queue_with_priority 0
 
   def perform(usernames, tags)
     results = { success: [], error: [], updated: [], skipped_orgs: [] }
