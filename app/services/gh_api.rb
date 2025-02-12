@@ -48,37 +48,35 @@ module GhApi
 
       Rails.logger.info "GhApi::Client.make_request: Making request to #{path} with params #{params}. Token: #{token.username}, Rate limit: #{token.send("#{api_type}_rate_limit_remaining")}"
 
-      token.with_lock do
-        begin
-          response = token.client.get(path, params)
-          update_token_rate_limits(token, api_type)
-          response.is_a?(Array) ? response.map { |item| item.to_hash.deep_symbolize_keys } : response.to_hash.deep_symbolize_keys
-        rescue Octokit::NotFound
-          raise NotFoundError, "GitHub resource not found: #{path}"
-        rescue Octokit::Unauthorized
-          Rails.logger.warn "Token #{token.username} is unauthorized. Revoking..."
-          token.revoke!
-          
-          if retry_count < MAX_RETRIES
-            Rails.logger.info "Retrying request with a new token (attempt #{retry_count + 1}/#{MAX_RETRIES})"
-            make_request(path, params, api_type, retry_count + 1)
-          else
-            raise Error, "Failed to find a working token after #{MAX_RETRIES} attempts"
-          end
-        rescue Octokit::Error => e
-          token.assign_rate_limits_from_api
-          token.save!
-          
-          if e.response_status == 403 && e.message.include?('rate limit')
-            raise RateLimitError, "Rate limit exceeded for path: #{path}"
-          elsif e.response_status == 409 && path.include?('/commits')
-            # Return empty array for empty repositories
-            []
-          elsif e.response_status == 451
-            raise DMCATakedownError, "Repository unavailable due to DMCA takedown: #{path}"
-          else
-            raise Error, "GitHub API error (#{e.response_status}): #{e.message}"
-          end
+      begin
+        response = token.client.get(path, params)
+        update_token_rate_limits(token, api_type)
+        response.is_a?(Array) ? response.map { |item| item.to_hash.deep_symbolize_keys } : response.to_hash.deep_symbolize_keys
+      rescue Octokit::NotFound
+        raise NotFoundError, "GitHub resource not found: #{path}"
+      rescue Octokit::Unauthorized
+        Rails.logger.warn "Token #{token.username} is unauthorized. Revoking..."
+        token.revoke!
+        
+        if retry_count < MAX_RETRIES
+          Rails.logger.info "Retrying request with a new token (attempt #{retry_count + 1}/#{MAX_RETRIES})"
+          make_request(path, params, api_type, retry_count + 1)
+        else
+          raise Error, "Failed to find a working token after #{MAX_RETRIES} attempts"
+        end
+      rescue Octokit::Error => e
+        token.assign_rate_limits_from_api
+        token.save!
+        
+        if e.response_status == 403 && e.message.include?('rate limit')
+          raise RateLimitError, "Rate limit exceeded for path: #{path}"
+        elsif e.response_status == 409 && path.include?('/commits')
+          # Return empty array for empty repositories
+          []
+        elsif e.response_status == 451
+          raise DMCATakedownError, "Repository unavailable due to DMCA takedown: #{path}"
+        else
+          raise Error, "GitHub API error (#{e.response_status}): #{e.message}"
         end
       end
     end
