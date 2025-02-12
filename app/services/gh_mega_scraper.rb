@@ -224,15 +224,14 @@ module GhMegaScraper
       Rails.logger.info "Starting upsert_commits"
       
       repos = GhRepo
-        .left_joins(:gh_user)
-        .left_joins(:gh_org)
-        .where(gh_user: tracked_gh_users_to_process) # repos owned by tracked users
+        .where(gh_user_id: tracked_gh_users_to_process
+          .joins(:gh_user)
+          .select('gh_users.id'))
         .or(
-          GhRepo.where(
-            gh_org: GhOrg
-              .joins(:gh_users)
-              .where(gh_users: tracked_gh_users_to_process)
-          ) # repos owned by orgs that tracked users belong to
+          GhRepo.where(gh_org_id: GhOrg
+            .joins(:gh_users)
+            .merge(GhUser.where(gh_id: tracked_gh_users_to_process.select(:gh_id)))
+            .select(:id))
         )
 
       repos.find_in_batches(batch_size: BATCH_SIZE) do |batch|
