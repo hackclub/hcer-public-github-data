@@ -3,7 +3,7 @@ module GhMegaScraperJob
     queue_with_priority 5
 
     THREADS = ENV.fetch('MEGA_SCRAPER_THREAD_COUNT', 1).to_i
-    BATCH_SIZE = 100
+    BATCH_SIZE = 500
 
     def perform(usernames = [], rescrape_interval = 1.day)
       Rails.logger.info "Starting GhMegaScraper with usernames: \\#{usernames.join(', ')} and rescrape_interval: \\#{rescrape_interval}"
