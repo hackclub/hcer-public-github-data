@@ -34,7 +34,7 @@ module App
     config.good_job.cron = {
       gh_mega_scraper: {
         cron: "0 0 * * *",
-        class: "GhMegaScraperJob",
+        class: "GhMegaScraperJob::Scrape",
         description: "Daily scrape of GitHub to update the database"
       }
     }
