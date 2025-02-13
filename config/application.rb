@@ -33,7 +33,7 @@ module App
     config.good_job.cron_graceful_restart_period = 1.minute
     config.good_job.cron = {
       gh_mega_scraper: {
-        cron: "0 0 * * *",
+        cron: "0 6 * * *",
         class: "GhMegaScraperJob::Scrape",
         description: "Daily scrape of GitHub to update the database"
       }
