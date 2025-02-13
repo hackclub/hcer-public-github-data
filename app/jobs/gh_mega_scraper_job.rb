@@ -250,8 +250,6 @@ module GhMegaScraperJob
 
   class UpsertCommitsForRepo < ApplicationJob
     def perform(gh_repo_id, rescrape_interval)
-      debugger
-
       repo = GhRepo.find(gh_repo_id)
 
       Rails.logger.info "Processing commits for repo #{repo.name} (ID=#{repo.id})"
@@ -272,7 +270,7 @@ module GhMegaScraperJob
           },
           tmp_gh_repo_id: repo.id
         }
-      end.compact
+      end
 
       # Extract unique authors from commits and upsert
       authors = data.map { |c| c[:tmp_author] }.uniq { |a| a[:gh_id] }
@@ -304,6 +302,7 @@ module GhMegaScraperJob
       commit_repo_records = data.map do |commit|
         "(#{ActiveRecord::Base.connection.quote(commit[:sha])}, #{commit[:tmp_gh_repo_id]})"
       end
+
       if commit_repo_records.any?
         sql = <<~SQL
           INSERT INTO gh_commits_repos (gh_commit_id, gh_repo_id)
