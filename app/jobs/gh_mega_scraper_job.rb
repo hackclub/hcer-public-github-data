@@ -316,7 +316,7 @@ module GhMegaScraperJob
       # Update the repo's scrape timestamp
       repo.update!(commits_scrape_last_completed_at: Time.current)
 
-      Rails.logger.info "Finished processing commits for repo \#{repo.name}"
+      Rails.logger.info "Finished processing commits for repo #{repo.name}"
     end
   end
 end
