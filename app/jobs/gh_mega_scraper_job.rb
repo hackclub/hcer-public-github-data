@@ -217,7 +217,8 @@ module GhMegaScraperJob
 
     def upsert_commits(tracked_gh_users_to_process, rescrape_interval)
       Rails.logger.info "Starting upsert_commits"
-      
+
+      # Determine which repos need commits
       repos = GhRepo
         .where(gh_user_id: tracked_gh_users_to_process
           .joins(:gh_user)
@@ -230,88 +231,87 @@ module GhMegaScraperJob
         )
         .where(commits_scrape_last_completed_at: [nil, ..rescrape_interval.ago])
 
-      repos.find_in_batches(batch_size: BATCH_SIZE) do |batch|
-        Rails.logger.info "Processing batch of \\#{batch.size} repos for commits"
-        
-        data = Parallel.flat_map(batch, in_threads: THREADS) do |repo|
-          begin
-            commits = GhApi::Client.request_paginated("repos/#{repo.owner_gh_username}/#{repo.name}/commits") rescue []
-
-            commits.map do |commit|
-              next unless commit[:author]
-              next unless commit[:author][:id]
-
-              {
-                sha: commit[:sha],
-                committed_at: commit[:commit][:author][:date],
-                message: commit[:commit][:message],
-
-                tmp_author: {
-                  login: commit[:author][:login],
-                  gh_id: commit[:author][:id],
-                  avatar_url: commit[:author][:avatar_url],
-                },
-
-                tmp_gh_repo_id: repo.id
-              }
-            end.compact
-          end
+      # Create a GoodJob batch for concurrency
+      batch = GoodJob::Batch.new
+      repos.find_each do |repo|
+        batch.add do
+          GhMegaScraperJob::UpsertCommitsForRepo.perform_later(repo.id, rescrape_interval)
         end
-
-        # Extract unique authors from commits and upsert them as GhUsers
-        authors = data.map { |commit| commit[:tmp_author] }.uniq { |author| author[:gh_id] }
-        
-        author_records = authors.map do |author|
-          {
-            gh_id: author[:gh_id],
-            username: author[:login],
-            avatar_url: author[:avatar_url]
-          }
-        end
-
-        GhUser.upsert_all(author_records, unique_by: :gh_id) if author_records.any?
-
-        # Get mapping of gh_id to GhUser id
-        author_gh_ids = data.map { |commit| commit[:tmp_author][:gh_id] }.uniq
-        gh_user_id_map = GhUser.where(gh_id: author_gh_ids).pluck(:gh_id, :id).to_h
-
-        # Remove tmp fields and add gh_user_id to commits
-        commit_records = data.map do |commit|
-          commit_data = commit.reject { |k, _| k.to_s.start_with?('tmp_') }
-          commit_data[:gh_user_id] = gh_user_id_map[commit[:tmp_author][:gh_id]]
-          commit_data
-        end
-
-        # Dedup commits by sha
-        commit_records = commit_records.uniq { |commit| commit[:sha] }
-
-        GhCommit.upsert_all(commit_records, unique_by: :sha) if commit_records.any?
-
-        # Create association records between commits and repos
-        commit_repo_records = data.map do |commit|
-          {
-            gh_commit_id: commit[:sha],
-            gh_repo_id: commit[:tmp_gh_repo_id]
-          }
-        end
-
-        # Bulk upsert the associations using the composite unique index
-        ActiveRecord::Base.connection.execute(
-          <<~SQL
-            INSERT INTO gh_commits_repos (gh_commit_id, gh_repo_id)
-            VALUES #{commit_repo_records.map { |r| "(#{ActiveRecord::Base.connection.quote(r[:gh_commit_id])}, #{r[:gh_repo_id]})" }.join(", ")}
-            ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
-          SQL
-        ) if commit_repo_records.any?
-
-        # Update commits_scrape_last_completed_at for all repos in this batch
-        repo_ids = batch.map(&:id)
-        GhRepo.where(id: repo_ids).update_all(commits_scrape_last_completed_at: Time.current)
-        
-        Rails.logger.info "Finished processing batch of commits"
       end
-      
+      batch.enqueue
+
+      Rails.logger.info "Enqueued UpsertCommitsForRepo for concurrency"
       Rails.logger.info "Finished upsert_commits"
+    end
+  end
+
+  class UpsertCommitsForRepo < ApplicationJob
+    def perform(gh_repo_id, rescrape_interval)
+      repo = GhRepo.find(gh_repo_id)
+
+      Rails.logger.info "Processing commits for repo \#{repo.name} (ID=\#{repo.id})"
+
+      # Fetch commits from GitHub
+      commits_response = GhApi::Client.request_paginated("repos/\#{repo.owner_gh_username}/\#{repo.name}/commits") rescue []
+      data = commits_response.map do |commit|
+        next unless commit[:author]&.dig(:id)
+
+        {
+          sha: commit[:sha],
+          committed_at: commit[:commit][:author][:date],
+          message: commit[:commit][:message],
+          tmp_author: {
+            login: commit[:author][:login],
+            gh_id: commit[:author][:id],
+            avatar_url: commit[:author][:avatar_url]
+          },
+          tmp_gh_repo_id: repo.id
+        }
+      end.compact
+
+      # Extract unique authors from commits and upsert
+      authors = data.map { |c| c[:tmp_author] }.uniq { |a| a[:gh_id] }
+      author_records = authors.map do |author|
+        {
+          gh_id: author[:gh_id],
+          username: author[:login],
+          avatar_url: author[:avatar_url]
+        }
+      end
+      GhUser.upsert_all(author_records, unique_by: :gh_id) if author_records.any?
+
+      # Build map of gh_id -> gh_user.id
+      gh_id_map = GhUser.where(gh_id: authors.map { |a| a[:gh_id] }).pluck(:gh_id, :id).to_h
+
+      # Prepare commits for upsert
+      commit_records = data.map do |commit|
+        {
+          sha: commit[:sha],
+          committed_at: commit[:committed_at],
+          message: commit[:message],
+          gh_user_id: gh_id_map[commit[:tmp_author][:gh_id]]
+        }
+      end.uniq { |c| c[:sha] }
+
+      GhCommit.upsert_all(commit_records, unique_by: :sha) if commit_records.any?
+
+      # Link commits to the repo (via gh_commits_repos join)
+      commit_repo_records = data.map do |commit|
+        "(#{ActiveRecord::Base.connection.quote(commit[:sha])}, #{commit[:tmp_gh_repo_id]})"
+      end
+      if commit_repo_records.any?
+        sql = <<~SQL
+          INSERT INTO gh_commits_repos (gh_commit_id, gh_repo_id)
+          VALUES #{commit_repo_records.join(", ")}
+          ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
+        SQL
+        ActiveRecord::Base.connection.execute(sql)
+      end
+
+      # Update the repo's scrape timestamp
+      repo.update!(commits_scrape_last_completed_at: Time.current)
+
+      Rails.logger.info "Finished processing commits for repo \#{repo.name}"
     end
   end
 end
