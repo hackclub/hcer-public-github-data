@@ -250,12 +250,14 @@ module GhMegaScraperJob
 
   class UpsertCommitsForRepo < ApplicationJob
     def perform(gh_repo_id, rescrape_interval)
+      debugger
+
       repo = GhRepo.find(gh_repo_id)
 
-      Rails.logger.info "Processing commits for repo \#{repo.name} (ID=\#{repo.id})"
+      Rails.logger.info "Processing commits for repo #{repo.name} (ID=#{repo.id})"
 
       # Fetch commits from GitHub
-      commits_response = GhApi::Client.request_paginated("repos/\#{repo.owner_gh_username}/\#{repo.name}/commits") rescue []
+      commits_response = GhApi::Client.request_paginated("repos/#{repo.owner_gh_username}/#{repo.name}/commits") rescue []
       data = commits_response.map do |commit|
         next unless commit[:author]&.dig(:id)
 
