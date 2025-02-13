@@ -233,6 +233,7 @@ module GhMegaScraperJob
 
       # Create a GoodJob batch for concurrency
       batch = GoodJob::Batch.new
+      batch.description = "GhMegaScraperJob::UpsertCommitsForRepo"
       repos.find_in_batches(batch_size: BATCH_SIZE) do |repo_batch|
         batch.add do
           repo_batch.each do |repo|
