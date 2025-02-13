@@ -270,7 +270,7 @@ module GhMegaScraperJob
           },
           tmp_gh_repo_id: repo.id
         }
-      end
+      end.compact
 
       # Extract unique authors from commits and upsert
       authors = data.map { |c| c[:tmp_author] }.uniq { |a| a[:gh_id] }
