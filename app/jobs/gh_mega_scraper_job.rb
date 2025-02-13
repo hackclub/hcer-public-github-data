@@ -233,9 +233,11 @@ module GhMegaScraperJob
 
       # Create a GoodJob batch for concurrency
       batch = GoodJob::Batch.new
-      repos.find_each do |repo|
+      repos.find_in_batches(batch_size: BATCH_SIZE) do |repo_batch|
         batch.add do
-          GhMegaScraperJob::UpsertCommitsForRepo.perform_later(repo.id, rescrape_interval)
+          repo_batch.each do |repo|
+            GhMegaScraperJob::UpsertCommitsForRepo.perform_later(repo.id, rescrape_interval)
+          end
         end
       end
       batch.enqueue
