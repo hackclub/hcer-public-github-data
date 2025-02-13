@@ -5,7 +5,7 @@ module GhMegaScraperJob
     THREADS = ENV.fetch('MEGA_SCRAPER_THREAD_COUNT', 1).to_i
     BATCH_SIZE = 500
 
-    def perform(usernames = [], rescrape_interval = 1.day)
+    def perform(usernames = [], rescrape_interval = 16.hours)
       Rails.logger.info "Starting GhMegaScraper with usernames: \\#{usernames.join(', ')} and rescrape_interval: \\#{rescrape_interval}"
       
       tracked_gh_users_to_process = if usernames.present?
