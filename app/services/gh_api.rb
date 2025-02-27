@@ -8,7 +8,7 @@ module GhApi
 
   class Client
     CACHE_VERSION = 'v1'
-    CACHE_EXPIRATION = 1.day
+    CACHE_EXPIRATION = 6.hours
     MAX_RETRIES = 3
 
     def self.request(path, params = {})
