@@ -193,7 +193,7 @@ module GhMegaScraperJob
         Rails.logger.info "Finished processing batch of repos"
       end
 
-      GhOrg.joins(:gh_users).where(gh_users: tracked_gh_users_to_process).find_in_batches(batch_size: BATCH_SIZE) do |batch|
+      GhOrg.joins(:gh_users).where(gh_users: GhUser.where(gh_id: tracked_gh_users_to_process.select(:gh_id))).find_in_batches(batch_size: BATCH_SIZE) do |batch|
         data = Parallel.flat_map(batch, in_threads: THREADS) do |gh_org|
           begin
             repos = GhApi::Client.request_paginated("users/#{gh_org.name}/repos") rescue []
