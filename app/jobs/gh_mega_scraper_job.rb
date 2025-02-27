@@ -42,7 +42,7 @@ module GhMegaScraperJob
         
         data = Parallel.map(batch, in_threads: THREADS) do |tracked_gh_user|
           begin
-            user_data = GhApi::Client.request("/users/#{tracked_gh_user.username}")
+            user_data = GhApi::Client.request("/users/#{tracked_gh_user.gh_id}")
 
             {
               gh_id: user_data[:id],
