@@ -209,6 +209,9 @@ module GhMegaScraperJob
           end
         end.compact
 
+        # Deduplicate by gh_id before upserting
+        data = data.uniq { |repo| repo[:gh_id] }
+
         GhRepo.upsert_all(data, unique_by: :gh_id)
       end
       
