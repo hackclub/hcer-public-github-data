@@ -4,6 +4,11 @@ Rails.application.routes.draw do
     root to: 'home#index'
   end
 
+  # API routes
+  namespace :api do
+    get 'users/:username/days_with_commits_in_range', to: 'users#days_with_commits_in_range'
+  end
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # OAuth routes
