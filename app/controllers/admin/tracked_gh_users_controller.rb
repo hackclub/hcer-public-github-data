@@ -23,7 +23,7 @@ module Admin
       if usernames.any?
         # Enqueue the job to process users
         AddTrackedUsersJob.perform_later(usernames, all_tags)
-        
+
         flash[:notice] = "Processing #{usernames.count} usernames in the background. Check back soon to see the results."
         redirect_to admin_tracked_gh_users_path
       else
@@ -49,4 +49,4 @@ module Admin
       user.scrape_last_requested_at && user.scrape_last_requested_at > 5.minutes.ago
     end
   end
-end 
+end

@@ -7,7 +7,7 @@ class TrackedGhUser < ApplicationRecord
 
   # Add association to GhUser
   belongs_to :gh_user, foreign_key: :gh_id, primary_key: :gh_id, optional: true
-  
+
   # Delegate scrape_last_completed_at to the associated gh_user
   delegate :scrape_last_completed_at, to: :gh_user, allow_nil: true
 
@@ -19,10 +19,10 @@ class TrackedGhUser < ApplicationRecord
 
   def must_be_user_not_org
     return unless gh_id.present?
-    
+
     begin
       user_data = GhApi::Client.request("users/#{username}")
-      if user_data[:type] == 'Organization'
+      if user_data[:type] == "Organization"
         errors.add(:base, "#{username} is an organization, not a user")
       end
     rescue GhApi::NotFoundError

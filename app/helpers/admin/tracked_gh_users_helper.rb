@@ -14,4 +14,4 @@ module Admin
       user.scrape_last_requested_at && user.scrape_last_requested_at > 5.minutes.ago
     end
   end
-end 
+end

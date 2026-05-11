@@ -5,8 +5,8 @@ module Admin
       @tracked_users_with_data = TrackedGhUser.joins(:gh_user).count
       @tracked_users_needing_scrape = TrackedGhUser
         .joins(:gh_user)
-        .where(gh_users: { scrape_last_completed_at: [nil, ..24.hours.ago] })
+        .where(gh_users: { scrape_last_completed_at: [ nil, ..24.hours.ago ] })
         .count
     end
   end
-end 
+end

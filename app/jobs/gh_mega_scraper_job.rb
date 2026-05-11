@@ -2,44 +2,44 @@ module GhMegaScraperJob
   class Scrape < ApplicationJob
     queue_with_priority 5
 
-    THREADS = ENV.fetch('MEGA_SCRAPER_THREAD_COUNT', 1).to_i
+    THREADS = ENV.fetch("MEGA_SCRAPER_THREAD_COUNT", 1).to_i
     BATCH_SIZE = 500
 
     def perform(usernames = [], rescrape_interval = 16.hours)
       Rails.logger.info "Starting GhMegaScraper with usernames: \\#{usernames.join(', ')} and rescrape_interval: \\#{rescrape_interval}"
-      
+
       tracked_gh_users_to_process = if usernames.present?
         TrackedGhUser.where(username: usernames)
       else
         TrackedGhUser.all
       end
-      
+
       # Step 1: Upsert all users
       upsert_users(tracked_gh_users_to_process)
-      
+
       # Step 2: Upsert all orgs for these users
       upsert_orgs(tracked_gh_users_to_process)
-      
+
       # # Step 4: Upsert all repos for users and orgs
       upsert_repos(tracked_gh_users_to_process)
-      
+
       # # Step 5: Process commits for repos that need updating
       upsert_commits(tracked_gh_users_to_process, rescrape_interval)
-      
+
       # # Step 6: Process profile readmes
       # process_profile_readmes(users)
-      
+
       Rails.logger.info "Finished GhMegaScraper"
     end
 
     private
-    
+
     def upsert_users(tracked_gh_users_to_process)
       Rails.logger.info "Starting upsert_users with \\#{tracked_gh_users_to_process.size} users"
-      
+
       tracked_gh_users_to_process.find_in_batches(batch_size: BATCH_SIZE) do |batch|
         Rails.logger.info "Processing batch of \\#{batch.size} users"
-        
+
         data = Parallel.map(batch, in_threads: THREADS) do |tracked_gh_user|
           begin
             user_data = GhApi::Client.request("/users/#{tracked_gh_user.username}")
@@ -75,19 +75,19 @@ module GhMegaScraperJob
         data = data.uniq { |user| user[:gh_id] }
 
         GhUser.upsert_all(data, unique_by: :gh_id)
-        
+
         Rails.logger.info "Finished processing batch of users"
       end
-      
+
       Rails.logger.info "Finished upsert_users"
     end
 
     def upsert_orgs(tracked_gh_users_to_process)
       Rails.logger.info "Starting upsert_orgs"
-      
+
       tracked_gh_users_to_process.includes(:gh_user).find_in_batches(batch_size: BATCH_SIZE) do |batch|
         Rails.logger.info "Processing batch of \\#{batch.size} users for orgs"
-        
+
         associations = []
         data = Parallel.flat_map(batch, in_threads: THREADS) do |tracked_gh_user|
           begin
@@ -133,16 +133,16 @@ module GhMegaScraperJob
           VALUES #{associations_to_insert.map { |r| "(#{r[:gh_user_id]}, #{r[:gh_org_id]})" }.join(", ")}
           ON CONFLICT (gh_user_id, gh_org_id) DO NOTHING
         SQL
-        
+
         Rails.logger.info "Finished processing batch of orgs"
       end
-      
+
       Rails.logger.info "Finished upsert_orgs"
     end
 
     def upsert_repos(tracked_gh_users_to_process)
       Rails.logger.info "Starting upsert_repos"
-      
+
       def repo_attrs(repo_resp)
         {
           gh_id: repo_resp[:id],
@@ -172,7 +172,7 @@ module GhMegaScraperJob
 
       tracked_gh_users_to_process.includes(:gh_user).find_in_batches(batch_size: BATCH_SIZE) do |batch|
         Rails.logger.info "Processing batch of \\#{batch.size} users for repos"
-        
+
         data = Parallel.flat_map(batch, in_threads: THREADS) do |tracked_gh_user|
           begin
             repos = GhApi::Client.request_paginated("users/#{tracked_gh_user.username}/repos") rescue []
@@ -189,7 +189,7 @@ module GhMegaScraperJob
         end.compact
 
         GhRepo.upsert_all(data, unique_by: :gh_id)
-        
+
         Rails.logger.info "Finished processing batch of repos"
       end
 
@@ -214,7 +214,7 @@ module GhMegaScraperJob
 
         GhRepo.upsert_all(data, unique_by: :gh_id)
       end
-      
+
       Rails.logger.info "Finished upsert_repos"
     end
 
@@ -225,14 +225,14 @@ module GhMegaScraperJob
       repos = GhRepo
         .where(gh_user_id: tracked_gh_users_to_process
           .joins(:gh_user)
-          .select('gh_users.id'))
+          .select("gh_users.id"))
         .or(
           GhRepo.where(gh_org_id: GhOrg
             .joins(:gh_users)
             .merge(GhUser.where(gh_id: tracked_gh_users_to_process.select(:gh_id)))
             .select(:id))
         )
-        .where(commits_scrape_last_completed_at: [nil, ..rescrape_interval.ago])
+        .where(commits_scrape_last_completed_at: [ nil, ..rescrape_interval.ago ])
 
       # Create a GoodJob batch for concurrency
       batch = GoodJob::Batch.new

@@ -23,7 +23,7 @@ class GhRepo < ApplicationRecord
 
   def must_belong_to_user_or_org
     if gh_user.nil? && gh_org.nil?
-      errors.add(:base, 'Repository must belong to either a user or an organization')
+      errors.add(:base, "Repository must belong to either a user or an organization")
     end
   end
 end

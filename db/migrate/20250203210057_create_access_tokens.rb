@@ -18,8 +18,8 @@ class CreateAccessTokens < ActiveRecord::Migration[8.0]
     add_index :access_tokens, :ghId, unique: true
     add_index :access_tokens, :username, unique: true
     add_index :access_tokens, :lastUsedAt
-    add_index :access_tokens, [:coreRateLimitRemaining, :coreRateLimitResetAt]
-    add_index :access_tokens, [:searchRateLimitRemaining, :searchRateLimitResetAt]
-    add_index :access_tokens, [:graphqlRateLimitRemaining, :graphqlRateLimitResetAt]
+    add_index :access_tokens, [ :coreRateLimitRemaining, :coreRateLimitResetAt ]
+    add_index :access_tokens, [ :searchRateLimitRemaining, :searchRateLimitResetAt ]
+    add_index :access_tokens, [ :graphqlRateLimitRemaining, :graphqlRateLimitResetAt ]
   end
 end

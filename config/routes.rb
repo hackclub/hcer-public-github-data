@@ -1,23 +1,23 @@
 Rails.application.routes.draw do
   namespace :admin do
-    resources :tracked_gh_users, only: [:index, :new, :create]
-    root to: 'home#index'
+    resources :tracked_gh_users, only: [ :index, :new, :create ]
+    root to: "home#index"
   end
 
   # API routes
   namespace :api do
-    get 'users/:username/days_with_commits_in_range', to: 'users#days_with_commits_in_range'
+    get "users/:username/days_with_commits_in_range", to: "users#days_with_commits_in_range"
   end
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # OAuth routes
-  match '/auth/:provider/callback', to: 'sessions#create', via: [:get, :post]
-  get '/auth/failure', to: 'sessions#failure'
-  get '/auth/github', as: :github_login
+  match "/auth/:provider/callback", to: "sessions#create", via: [ :get, :post ]
+  get "/auth/failure", to: "sessions#failure"
+  get "/auth/github", as: :github_login
 
   # GitHub API proxy route
-  get '/gh/*path', to: 'github_proxy#proxy'
+  get "/gh/*path", to: "github_proxy#proxy"
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
@@ -31,5 +31,5 @@ Rails.application.routes.draw do
   root "home#index"
 
   # Mount Good Job dashboard
-  mount GoodJob::Engine => 'good_job'
+  mount GoodJob::Engine => "good_job"
 end
