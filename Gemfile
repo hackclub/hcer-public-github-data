@@ -23,7 +23,7 @@ gem "omniauth-github"
 gem "omniauth-rails_csrf_protection"
 
 # GitHub API client
-gem "octokit", "~> 7.0"
+gem "octokit", "~> 10.0"
 gem "faraday-retry"
 gem "parallel"
 
