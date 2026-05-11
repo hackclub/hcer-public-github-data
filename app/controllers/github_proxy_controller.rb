@@ -11,8 +11,9 @@ class GithubProxyController < ApplicationController
   private
 
   def authenticate_request
+    proxy_api_key = ENV["PROXY_API_KEY"].presence || Rails.application.credentials.proxy_api_key
     api_key = request.headers["X-Proxy-API-Key"]
-    unless api_key && ActiveSupport::SecurityUtils.secure_compare(api_key, Rails.application.credentials.proxy_api_key)
+    unless proxy_api_key.present? && api_key.present? && ActiveSupport::SecurityUtils.secure_compare(api_key, proxy_api_key)
       render json: { error: "Unauthorized" }, status: :unauthorized
     end
   end

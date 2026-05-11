@@ -1,13 +1,11 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
-  gh_id: 
-  name: MyString
+  gh_id: 3001
+  name: public-github-data
   gh_user: one
-  gh_org: one
 
 two:
-  gh_id: 
-  name: MyString
-  gh_user: two
+  gh_id: 3002
+  name: sprig-site
   gh_org: two
