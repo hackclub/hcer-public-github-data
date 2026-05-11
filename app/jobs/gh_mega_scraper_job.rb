@@ -127,12 +127,10 @@ module GhMegaScraperJob
           }
         end
 
-        # Use raw SQL to insert the associations
-        ActiveRecord::Base.connection.execute(<<~SQL)
-          INSERT INTO gh_orgs_users (gh_user_id, gh_org_id)
-          VALUES #{associations_to_insert.map { |r| "(#{r[:gh_user_id]}, #{r[:gh_org_id]})" }.join(", ")}
-          ON CONFLICT (gh_user_id, gh_org_id) DO NOTHING
-        SQL
+        GhOrgsUser.insert_all(
+          associations_to_insert,
+          unique_by: :index_gh_orgs_users_on_gh_user_id_and_gh_org_id
+        ) if associations_to_insert.any?
 
         Rails.logger.info "Finished processing batch of orgs"
       end
@@ -301,19 +299,15 @@ module GhMegaScraperJob
 
       GhCommit.upsert_all(commit_records, unique_by: :sha) if commit_records.any?
 
-      # Link commits to the repo (via gh_commits_repos join)
-      commit_repo_records = data.map do |commit|
-        "(#{ActiveRecord::Base.connection.quote(commit[:sha])}, #{commit[:tmp_gh_repo_id]})"
-      end
-
-      if commit_repo_records.any?
-        sql = <<~SQL
-          INSERT INTO gh_commits_repos (gh_commit_id, gh_repo_id)
-          VALUES #{commit_repo_records.join(", ")}
-          ON CONFLICT (gh_commit_id, gh_repo_id) DO NOTHING
-        SQL
-        ActiveRecord::Base.connection.execute(sql)
-      end
+      GhCommitsRepo.insert_all(
+        data.map do |commit|
+          {
+            gh_commit_id: commit[:sha],
+            gh_repo_id: commit[:tmp_gh_repo_id]
+          }
+        end,
+        unique_by: :index_gh_commits_repos_on_gh_commit_id_and_gh_repo_id
+      ) if data.any?
 
       # Update the repo's scrape timestamp
       repo.update!(commits_scrape_last_completed_at: Time.current)
