@@ -1,13 +1,16 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
-  gh_id: 
-  username: MyString
-  tags: 
+  gh_id: 1001
+  username: octocat
+  tags:
+    - maintainers
   scrape_last_requested_at: 2025-02-10 14:47:23
 
 two:
-  gh_id: 
-  username: MyString
-  tags: 
+  gh_id: 1002
+  username: hubot
+  tags:
+    - ruby
+    - rails
   scrape_last_requested_at: 2025-02-10 14:47:23

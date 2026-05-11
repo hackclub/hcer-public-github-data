@@ -11,7 +11,7 @@ module Admin
 
     def new
       @tracked_gh_user = TrackedGhUser.new
-      @known_tags = TrackedGhUser.pluck(:tags).compact.flatten.uniq.sort
+      load_known_tags
     end
 
     def create
@@ -29,11 +29,16 @@ module Admin
       else
         flash.now[:alert] = "Please enter at least one username"
         @tracked_gh_user = TrackedGhUser.new
+        load_known_tags
         render :new
       end
     end
 
     private
+
+    def load_known_tags
+      @known_tags = TrackedGhUser.pluck(:tags).compact.flatten.uniq.sort
+    end
 
     def scrape_status_badge(user)
       if user.scrape_last_completed_at.nil?
