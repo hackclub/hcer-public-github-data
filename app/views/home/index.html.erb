@@ -1,4 +1,9 @@
 <div class="donate-container">
+  <aside class="migration-banner">
+    <strong>This service is no longer active.</strong>
+    Please use the <%= link_to "new GitHub proxy", "https://gh-proxy.hackclub.com/" %> instead.
+  </aside>
+
   <h1>Donate your GitHub token</h1>
 
   <div class="stats-box">
@@ -18,7 +23,5 @@
 
   <p>- Zach</p>
 
-  <%= form_tag '/auth/github', method: :post, data: { turbo: false } do %>
-    <button type="submit" class="donate-button">Donate Token</button>
-  <% end %>
-</div> 
+  <button type="button" class="donate-button" disabled>Donate Token</button>
+</div>

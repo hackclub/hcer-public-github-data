@@ -1,15 +1,5 @@
-# HCer Public Github Data
+# HCer Public GitHub Data
 
-Scripts and tooling to gather public GitHub data to calculate stats like whether Hack Clubbers code more during events like High Seas / Arcade than before.
+This project has moved to [hackclub/gh-proxy](https://github.com/hackclub/gh-proxy).
 
-## Tools
-
-### Proxy
-
-Make requests to `/gh/` to proxy requests to the GitHub API. You must pass `X-Proxy-API-Key` as an HTTP header with the value `proxy-api-key` (found in Rails credentials).
-
-Example paths:
-
-- `/gh/users/octocat`
-- `/gh/search/repositories?q=rails+in:name,description,readme`
-- `/gh/graphql`
+The new GitHub proxy is hosted at [gh-proxy.hackclub.com](https://gh-proxy.hackclub.com/). See its [API documentation](https://gh-proxy.hackclub.com/docs) for usage and API-key setup.
